@@ -39,12 +39,15 @@ FIELD_MAP = {
     "detail_url":      ("noticeUrl", "contractUrl", "url"),
 }
 
-# purchaseType → 업종 라벨 (실제 응답에 Product/Construction/Service 관찰됨)
+# purchaseType → 업종 라벨.
+# 실제 응답 확인값(2026-04): Product, ConstructionService.
+# KEPCO는 전기공사/용역을 합쳐 "ConstructionService"로 발행.
 PURCHASE_TYPE_LABELS = {
     "Product": "물품",
+    "Goods": "물품",
     "Construction": "공사",
     "Service": "용역",
-    "Goods": "물품",
+    "ConstructionService": "공사",
 }
 
 COMPANY_LABELS = {

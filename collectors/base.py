@@ -16,7 +16,9 @@ def http_get_json(
     user_agent: str = DEFAULT_UA,
     max_retries: int = 2,
 ) -> dict:
-    headers = {"User-Agent": user_agent, "Accept": "application/json"}
+    # Use wildcard Accept — 일부 한국 공공 API(KEPCO)가 application/json을
+    # 거부 (실제 응답이 text/plain이라도 JSON 본문을 포함).
+    headers = {"User-Agent": user_agent, "Accept": "*/*"}
     last_err: Exception | None = None
     for attempt in range(max_retries + 1):
         try:
