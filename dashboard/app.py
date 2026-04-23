@@ -48,6 +48,8 @@ SOURCE_LABELS = {
     "kapt_api": "K-apt",
     "alio": "ALIO",
     "g2b_crawl": "나라장터 크롤",
+    "d2b_api_dmstc": "국방전자조달",
+    "kwater_api": "K-water",
 }
 
 
@@ -244,7 +246,7 @@ def run_collect_action(config: dict, db_path: Path) -> tuple[bool, str, list[str
     Returns (ok, summary, per_source_log) so the UI can surface warnings
     even when the overall run succeeds (e.g. one source failed).
     """
-    from collectors import g2b_api, kapt_api, alio_crawler
+    from collectors import g2b_api, kapt_api, alio_crawler, d2b_api, kwater_api
     from db import database as dbmod
 
     sleep = float(config.get("collection", {}).get("request_sleep_seconds", 1.5))
@@ -303,6 +305,46 @@ def run_collect_action(config: dict, db_path: Path) -> tuple[bool, str, list[str
         except Exception as e:
             msg = f"❌ ALIO 오류: {type(e).__name__}: {e}"
             errors.append(msg); log_lines.append(msg)
+
+    if sources.get("d2b_api"):
+        key = get_secret("G2B_SERVICE_KEY") or get_secret("D2B_SERVICE_KEY")
+        if not key:
+            log_lines.append("⏩ 국방전자조달(d2b): 키 없음 — skip")
+        else:
+            try:
+                rows = d2b_api.collect_all(
+                    service_key=key, page_size=page_size,
+                    sleep_seconds=sleep, lookback_days=lookback,
+                )
+                dbmod.upsert_bids(db_path, rows)
+                total += len(rows)
+                log_lines.append(f"✅ 국방전자조달(d2b): {len(rows):,}건")
+            except Exception as e:
+                msg = f"❌ 국방전자조달(d2b) 오류: {type(e).__name__}: {e}"
+                errors.append(msg); log_lines.append(msg)
+
+    if sources.get("kwater_api"):
+        key = get_secret("G2B_SERVICE_KEY") or get_secret("KWATER_SERVICE_KEY")
+        kw_cfg = (config.get("collection", {}).get("kwater") or {})
+        if not key or not kw_cfg.get("base_url") or not kw_cfg.get("operation"):
+            log_lines.append("⏩ K-water: 엔드포인트 미설정 — skip (config.collection.kwater 설정 필요)")
+        else:
+            try:
+                rows = kwater_api.collect(
+                    service_key=key,
+                    base_url=kw_cfg["base_url"],
+                    operation=kw_cfg["operation"],
+                    type_param=kw_cfg.get("type_param", "_type"),
+                    page_size=page_size,
+                    sleep_seconds=sleep,
+                    lookback_days=lookback,
+                )
+                dbmod.upsert_bids(db_path, rows)
+                total += len(rows)
+                log_lines.append(f"✅ K-water: {len(rows):,}건")
+            except Exception as e:
+                msg = f"❌ K-water 오류: {type(e).__name__}: {e}"
+                errors.append(msg); log_lines.append(msg)
 
     summary = f"수집 완료: {total:,}건"
     if errors:

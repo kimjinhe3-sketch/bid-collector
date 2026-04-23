@@ -1,0 +1,48 @@
+{
+  "response": {
+    "header": {"resultCode": "00", "resultMsg": "NORMAL SERVICE."},
+    "body": {
+      "pageNo": 1,
+      "numOfRows": 100,
+      "totalCount": 3,
+      "items": {
+        "item": [
+          {
+            "bidNm": "간부숙소 신축 액화석유가스(LPG)구매",
+            "bsicExpt": "209704147",
+            "busiDivs": "물품",
+            "cntrctMth": "제한경쟁",
+            "g2bPblancNo": "2026HDL001613256",
+            "opengDt": "202604231100",
+            "ornt": "공군제16전투비행단",
+            "pblancDate": "20260423",
+            "pblancNo": "HDL0016",
+            "pblancOdr": "2"
+          },
+          {
+            "bidNm": "고무벤드 조립체 등 2항목 생산제조",
+            "bsicExpt": "188458800",
+            "busiDivs": "물품",
+            "cntrctMth": "제한경쟁",
+            "opengDt": "202604241030",
+            "ornt": "육군군수사령부",
+            "pblancDate": "20260422",
+            "pblancNo": "LCF0081",
+            "pblancOdr": "2"
+          },
+          {
+            "bidNm": "활주로지역 제초 유지관리 용역",
+            "bsicExpt": "305830950",
+            "busiDivs": "용역",
+            "cntrctMth": "제한경쟁",
+            "opengDt": "202604251100",
+            "ornt": "공군제19전투비행단",
+            "pblancDate": "20260423",
+            "pblancNo": "HDP0009",
+            "pblancOdr": "1"
+          }
+        ]
+      }
+    }
+  }
+}

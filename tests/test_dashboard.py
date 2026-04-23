@@ -89,6 +89,7 @@ def test_source_labels_cover_known_sources():
     expected = {
         "g2b_api_thng", "g2b_api_servc", "g2b_api_cnstwk",
         "kapt_api", "alio", "g2b_crawl",
+        "d2b_api_dmstc", "kwater_api",
     }
     assert expected == set(dashboard.SOURCE_LABELS.keys())
 

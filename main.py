@@ -18,7 +18,7 @@ load_dotenv(ROOT / ".env")
 
 from utils.logger import setup_logger, get_logger
 from utils.config_loader import load_config, cron_kwargs
-from collectors import g2b_api, kapt_api, alio_crawler, g2b_crawler
+from collectors import g2b_api, kapt_api, alio_crawler, g2b_crawler, d2b_api, kwater_api
 from db import database
 from filters import keyword_filter
 from notifiers import email_notifier, slack_notifier
@@ -110,6 +110,44 @@ def run_collect(config: dict) -> int:
     if sources.get("g2b_crawler"):
         # Deprecated stub — legacy endpoint unavailable since site redesign.
         g2b_crawler.collect()
+
+    if sources.get("d2b_api"):
+        key = os.environ.get("G2B_SERVICE_KEY") or os.environ.get("D2B_SERVICE_KEY")
+        if not key:
+            logger.warning("D2B/G2B_SERVICE_KEY missing — skipping d2b_api")
+        else:
+            try:
+                rows = d2b_api.collect_all(
+                    service_key=key,
+                    page_size=page_size,
+                    sleep_seconds=sleep_seconds,
+                    lookback_days=lookback_days,
+                )
+                database.upsert_bids(db_path, rows)
+                total_collected += len(rows)
+            except Exception:
+                logger.exception("d2b_api collection crashed")
+
+    if sources.get("kwater_api"):
+        key = os.environ.get("G2B_SERVICE_KEY") or os.environ.get("KWATER_SERVICE_KEY")
+        kwater_cfg = (config.get("collection", {}).get("kwater") or {})
+        if not key:
+            logger.warning("KWATER_SERVICE_KEY missing — skipping kwater_api")
+        else:
+            try:
+                rows = kwater_api.collect(
+                    service_key=key,
+                    base_url=kwater_cfg.get("base_url", ""),
+                    operation=kwater_cfg.get("operation", ""),
+                    type_param=kwater_cfg.get("type_param", "_type"),
+                    page_size=page_size,
+                    sleep_seconds=sleep_seconds,
+                    lookback_days=lookback_days,
+                )
+                database.upsert_bids(db_path, rows)
+                total_collected += len(rows)
+            except Exception:
+                logger.exception("kwater_api collection crashed")
 
     logger.info("collection complete: %d rows total", total_collected)
     return total_collected
