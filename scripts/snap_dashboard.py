@@ -25,7 +25,7 @@ def shoot(name: str, width: int, height: int):
         )
         page = ctx.new_page()
         page.goto(URL, wait_until="networkidle", timeout=60_000)
-        page.wait_for_selector("text=대한민국 입찰공고 대시보드", timeout=30_000)
+        page.wait_for_selector("text=국내 입찰공고 현황", timeout=30_000)
         try:
             page.wait_for_function(
                 "() => document.querySelectorAll('[data-testid=stSkeleton]').length === 0",
