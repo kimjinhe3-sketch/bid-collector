@@ -46,7 +46,7 @@ def test_abcd_full_pipeline(tmp_path, monkeypatch):
                                       http_client=_alio_client)
     crawl_rows = g2b_crawler.collect()  # deprecated → []
 
-    assert len(g2b_rows) == 12 * 3       # 3 operations × 12 fixture items
+    assert len(g2b_rows) == 12 * 5       # 5 operations × 12 fixture items
     assert len(kapt_rows) == 3
     assert len(alio_rows) == 10
     assert crawl_rows == []

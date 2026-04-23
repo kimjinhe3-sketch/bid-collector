@@ -32,13 +32,13 @@ def test_full_pipeline_collect_upsert_filter_notify(tmp_path):
         lookback_days=1,
         http_client=client,
     )
-    assert len(rows) == 12 * 3  # 3 operations × 12 fixture items
+    assert len(rows) == 12 * 5  # 5 operations × 12 fixture items
 
     # Step 2: B — upsert into SQLite
     db = tmp_path / "integration.sqlite"
     database.init_db(db)
     processed, skipped = database.upsert_bids(db, rows)
-    assert processed == 36
+    assert processed == 60
     assert skipped == 0
 
     # Step 3: idempotency — re-collecting the same data should not dupe
@@ -46,7 +46,7 @@ def test_full_pipeline_collect_upsert_filter_notify(tmp_path):
                                  sleep_seconds=0, lookback_days=1, http_client=client)
     database.upsert_bids(db, rows2)
     unnotified = database.get_unnotified(db)
-    assert len(unnotified) == 36, "upsert must deduplicate across runs"
+    assert len(unnotified) == 60, "upsert must deduplicate across runs"
 
     # Step 4: filter — include AI/데이터/클라우드, exclude 청소/경비
     filter_cfg = {
@@ -82,11 +82,11 @@ def test_full_pipeline_collect_upsert_filter_notify(tmp_path):
         r for r in database.get_unnotified(db) if r["id"] not in ids
     ]  # matched rows should be gone
     remaining = database.get_unnotified(db)
-    assert len(remaining) == 36 - len(matched)
+    assert len(remaining) == 60 - len(matched)
 
     # Step 7: re-upsert should NOT resurrect is_notified flag
     database.upsert_bids(db, rows)
-    assert len(database.get_unnotified(db)) == 36 - len(matched)
+    assert len(database.get_unnotified(db)) == 60 - len(matched)
 
 
 def test_pipeline_handles_source_failure_gracefully(tmp_path):
@@ -106,15 +106,16 @@ def test_pipeline_handles_source_failure_gracefully(tmp_path):
         lookback_days=1,
         http_client=flaky_client,
     )
-    # 물품 + 용역 ok, 공사 failed → 24 rows (not 36)
-    assert len(rows) == 24
+    # 공사(Cnstwk)만 실패, 나머지 4개 오퍼레이션 × 12 = 48
+    assert len(rows) == 48
     sources = {r["source"] for r in rows}
-    assert sources == {"g2b_api_thng", "g2b_api_servc"}
+    assert sources == {"g2b_api_thng", "g2b_api_servc",
+                       "g2b_api_frgcpt", "g2b_api_etc"}
 
     db = tmp_path / "partial.sqlite"
     database.init_db(db)
     processed, _ = database.upsert_bids(db, rows)
-    assert processed == 24
+    assert processed == 48
 
 
 def test_main_module_imports_cleanly():

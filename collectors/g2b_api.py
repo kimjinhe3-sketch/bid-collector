@@ -20,9 +20,13 @@ logger = get_logger("bid_collector.g2b_api")
 BASE_URL = "https://apis.data.go.kr/1230000/ad/BidPublicInfoService"
 
 OPERATIONS: dict[str, tuple[str, str]] = {
-    "g2b_api_thng":   ("getBidPblancListInfoThng",   "물품"),
-    "g2b_api_servc":  ("getBidPblancListInfoServc",  "용역"),
-    "g2b_api_cnstwk": ("getBidPblancListInfoCnstwk", "공사"),
+    "g2b_api_thng":    ("getBidPblancListInfoThng",    "물품"),
+    "g2b_api_servc":   ("getBidPblancListInfoServc",   "용역"),
+    "g2b_api_cnstwk":  ("getBidPblancListInfoCnstwk",  "공사"),
+    "g2b_api_frgcpt":  ("getBidPblancListInfoFrgcpt",  "외자"),
+    # 기타(Etc) = 대학/지자체/기관이 직접 올리는 민간/민간위탁/기타 공고.
+    # 누리장터(nuri.g2b.go.kr)에 등재되는 민간수요자 공고와 가장 유사한 카테고리.
+    "g2b_api_etc":     ("getBidPblancListInfoEtc",     "기타"),
 }
 
 

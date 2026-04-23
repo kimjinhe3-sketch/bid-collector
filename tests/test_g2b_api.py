@@ -103,7 +103,7 @@ def test_fetch_operation_paginates_when_total_exceeds_page_size():
     assert len(rows) == 12 * 3
 
 
-def test_collect_all_iterates_three_operations():
+def test_collect_all_iterates_all_operations():
     sample = _load_fixture()
     client = _mock_client(sample)
 
@@ -115,10 +115,12 @@ def test_collect_all_iterates_three_operations():
         http_client=client,
     )
 
-    assert len(client.calls) == 3
+    # 5 operations: 물품 / 용역 / 공사 / 외자 / 기타
+    assert len(client.calls) == 5
     sources = {r["source"] for r in rows}
-    assert sources == {"g2b_api_thng", "g2b_api_servc", "g2b_api_cnstwk"}
-    assert len(rows) == 12 * 3
+    assert sources == {"g2b_api_thng", "g2b_api_servc", "g2b_api_cnstwk",
+                       "g2b_api_frgcpt", "g2b_api_etc"}
+    assert len(rows) == 12 * 5
 
 
 def test_fetch_operation_tolerates_exceptions():

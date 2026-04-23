@@ -45,6 +45,8 @@ SOURCE_LABELS = {
     "g2b_api_thng": "나라장터 물품",
     "g2b_api_servc": "나라장터 용역",
     "g2b_api_cnstwk": "나라장터 공사",
+    "g2b_api_frgcpt": "나라장터 외자",
+    "g2b_api_etc":    "나라장터 기타·민간",
     "kapt_api": "K-apt",
     "alio": "ALIO",
     "g2b_crawl": "나라장터 크롤",

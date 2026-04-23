@@ -88,6 +88,7 @@ def test_rows_to_dataframe_uses_raw_source_when_unknown():
 def test_source_labels_cover_known_sources():
     expected = {
         "g2b_api_thng", "g2b_api_servc", "g2b_api_cnstwk",
+        "g2b_api_frgcpt", "g2b_api_etc",
         "kapt_api", "alio", "g2b_crawl",
         "d2b_api_dmstc", "kwater_api",
         "kwater_api_cntrwk", "kwater_api_gds",
