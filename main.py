@@ -131,14 +131,13 @@ def run_collect(config: dict) -> int:
     if sources.get("kwater_api"):
         key = os.environ.get("G2B_SERVICE_KEY") or os.environ.get("KWATER_SERVICE_KEY")
         kwater_cfg = (config.get("collection", {}).get("kwater") or {})
-        if not key:
-            logger.warning("KWATER_SERVICE_KEY missing — skipping kwater_api")
+        if not key or not kwater_cfg.get("base_url"):
+            logger.warning("kwater: key or base_url missing — skipping kwater_api")
         else:
             try:
                 rows = kwater_api.collect(
                     service_key=key,
                     base_url=kwater_cfg.get("base_url", ""),
-                    operation=kwater_cfg.get("operation", ""),
                     type_param=kwater_cfg.get("type_param", "_type"),
                     page_size=page_size,
                     sleep_seconds=sleep_seconds,

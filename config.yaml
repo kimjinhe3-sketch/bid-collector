@@ -5,7 +5,7 @@ collection:
     alio: true
     g2b_crawler: false   # deprecated (엔드포인트 사망)
     d2b_api: true        # 국방전자조달 (G2B 서비스키 공용)
-    kwater_api: false    # 엔드포인트 미확인 — Swagger에서 URL 확인 후 활성화
+    kwater_api: true     # 한국수자원공사 (공사/물품/용역/내자 4 오퍼레이션)
   request_sleep_seconds: 1.5
   page_size: 100
   lookback_days: 1
@@ -16,10 +16,9 @@ collection:
     base_url: ""       # 빈 값이면 collectors/kapt_api.py의 DEFAULT_BASE_URL 사용
     operation: ""
   kwater:
-    # K-water는 data.go.kr Swagger UI에서 아래 값 확인 필요
-    # (data.go.kr > 마이페이지 > 활용신청 > 15101635 상세 > 미리보기)
-    base_url: ""       # 예: "http://apis.data.go.kr/B551335/KWaterBidInfoService"
-    operation: ""      # 예: "getBidPblancList"
+    # 한국수자원공사 K-water 전자조달 입찰공고 (data.go.kr 15101635)
+    # operations 4개 자동 순회: cntrwkList/gdsList/servcList/dmscptList
+    base_url: "https://apis.data.go.kr/B500001/eBid/tndr3"
     type_param: "_type"
 
 filters:

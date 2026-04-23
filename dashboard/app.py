@@ -50,6 +50,10 @@ SOURCE_LABELS = {
     "g2b_crawl": "나라장터 크롤",
     "d2b_api_dmstc": "국방전자조달",
     "kwater_api": "K-water",
+    "kwater_api_cntrwk": "K-water 공사",
+    "kwater_api_gds":    "K-water 물품",
+    "kwater_api_servc":  "K-water 용역",
+    "kwater_api_dmscpt": "K-water 내자",
 }
 
 
@@ -326,14 +330,13 @@ def run_collect_action(config: dict, db_path: Path) -> tuple[bool, str, list[str
     if sources.get("kwater_api"):
         key = get_secret("G2B_SERVICE_KEY") or get_secret("KWATER_SERVICE_KEY")
         kw_cfg = (config.get("collection", {}).get("kwater") or {})
-        if not key or not kw_cfg.get("base_url") or not kw_cfg.get("operation"):
-            log_lines.append("⏩ K-water: 엔드포인트 미설정 — skip (config.collection.kwater 설정 필요)")
+        if not key or not kw_cfg.get("base_url"):
+            log_lines.append("⏩ K-water: 키 또는 base_url 미설정 — skip")
         else:
             try:
                 rows = kwater_api.collect(
                     service_key=key,
                     base_url=kw_cfg["base_url"],
-                    operation=kw_cfg["operation"],
                     type_param=kw_cfg.get("type_param", "_type"),
                     page_size=page_size,
                     sleep_seconds=sleep,
