@@ -254,17 +254,20 @@ def render_kw_chips(include: list[str], exclude: list[str]) -> str:
 # Actions (in-dashboard collect / notify)
 # ────────────────────────────────────────────────────────────────
 
-def run_collect_action(config: dict, db_path: Path) -> tuple[bool, str, list[str]]:
+def run_collect_action(config: dict, db_path: Path,
+                        log_callback=None) -> tuple[bool, str, list[str]]:
     """Run collection synchronously from within the dashboard.
 
-    Returns (ok, summary, per_source_log) so the UI can surface warnings
-    even when the overall run succeeds (e.g. one source failed).
+    log_callback(msg: str)가 주어지면 각 스테이지 시작/종료 시 즉시 호출해
+    UI에 실시간으로 진행 상황을 표시할 수 있습니다.
+    Returns (ok, summary, per_source_log).
     """
+    import time as _time
     from collectors import (g2b_api, kapt_api, alio_crawler,
                             d2b_api, kwater_api, kepco_api)
     from db import database as dbmod
 
-    sleep = float(config.get("collection", {}).get("request_sleep_seconds", 1.5))
+    sleep = float(config.get("collection", {}).get("request_sleep_seconds", 0.8))
     page_size = int(config.get("collection", {}).get("page_size", 100))
     lookback = int(config.get("collection", {}).get("lookback_days", 1))
     sources = config.get("collection", {}).get("sources") or {}
@@ -274,112 +277,97 @@ def run_collect_action(config: dict, db_path: Path) -> tuple[bool, str, list[str
     errors = []
     log_lines = []
 
+    def _log(msg: str):
+        log_lines.append(msg)
+        if log_callback:
+            try:
+                log_callback(msg)
+            except Exception:
+                pass
+
+    def _run_stage(name: str, fn):
+        nonlocal total
+        _log(f"⏳ {name} 수집 중…")
+        t0 = _time.time()
+        try:
+            rows = fn()
+            dbmod.upsert_bids(db_path, rows)
+            total += len(rows)
+            elapsed = _time.time() - t0
+            _log(f"✅ {name}: {len(rows):,}건 ({elapsed:.0f}s)")
+        except Exception as e:
+            elapsed = _time.time() - t0
+            msg = f"❌ {name} 오류 ({elapsed:.0f}s): {type(e).__name__}: {e}"
+            errors.append(msg); _log(msg)
+
     if sources.get("g2b_api"):
         key = get_secret("G2B_SERVICE_KEY")
         if not key:
-            msg = "❌ 나라장터(G2B): G2B_SERVICE_KEY 미설정 — 클라우드 Secrets 탭에 추가하세요."
-            errors.append(msg); log_lines.append(msg)
+            msg = "❌ 나라장터(G2B): G2B_SERVICE_KEY 미설정 — Secrets에 추가하세요."
+            errors.append(msg); _log(msg)
         else:
-            try:
-                rows = g2b_api.collect_all(service_key=key, page_size=page_size,
-                                            sleep_seconds=sleep, lookback_days=lookback)
-                dbmod.upsert_bids(db_path, rows)
-                total += len(rows)
-                log_lines.append(f"✅ 나라장터(G2B): {len(rows):,}건")
-            except Exception as e:
-                msg = f"❌ 나라장터(G2B) 오류: {type(e).__name__}: {e}"
-                errors.append(msg); log_lines.append(msg)
+            _run_stage("나라장터(G2B)", lambda: g2b_api.collect_all(
+                service_key=key, page_size=page_size,
+                sleep_seconds=sleep, lookback_days=lookback,
+            ))
 
     if sources.get("kapt_api"):
         key = get_secret("KAPT_SERVICE_KEY")
         if not key:
-            log_lines.append("⏩ K-apt: 키 없음 — skip")
+            _log("⏩ K-apt: 키 없음 — skip")
         else:
-            try:
-                rows = kapt_api.collect(service_key=key, page_size=page_size,
-                                        sleep_seconds=sleep, lookback_days=lookback)
-                dbmod.upsert_bids(db_path, rows)
-                total += len(rows)
-                log_lines.append(f"✅ K-apt: {len(rows):,}건")
-            except Exception as e:
-                msg = f"❌ K-apt 오류: {type(e).__name__}: {e}"
-                errors.append(msg); log_lines.append(msg)
+            _run_stage("K-apt", lambda: kapt_api.collect(
+                service_key=key, page_size=page_size,
+                sleep_seconds=sleep, lookback_days=lookback,
+            ))
 
     if sources.get("alio"):
-        try:
-            alio_cfg = (config.get("collection", {}).get("alio") or {})
-            rows = alio_crawler.collect(
-                word=alio_cfg.get("keyword", ""),
-                max_pages=int(alio_cfg.get("max_pages", 10)),
-                sleep_seconds=sleep,
-                lookback_days=lookback,
-            )
-            dbmod.upsert_bids(db_path, rows)
-            total += len(rows)
-            log_lines.append(f"✅ ALIO: {len(rows):,}건")
-        except Exception as e:
-            msg = f"❌ ALIO 오류: {type(e).__name__}: {e}"
-            errors.append(msg); log_lines.append(msg)
+        alio_cfg = (config.get("collection", {}).get("alio") or {})
+        _run_stage("ALIO", lambda: alio_crawler.collect(
+            word=alio_cfg.get("keyword", ""),
+            max_pages=int(alio_cfg.get("max_pages", 10)),
+            sleep_seconds=sleep,
+            lookback_days=lookback,
+        ))
 
     if sources.get("d2b_api"):
         key = get_secret("G2B_SERVICE_KEY") or get_secret("D2B_SERVICE_KEY")
         if not key:
-            log_lines.append("⏩ 국방전자조달(d2b): 키 없음 — skip")
+            _log("⏩ 방위사업청(d2b): 키 없음 — skip")
         else:
-            try:
-                rows = d2b_api.collect_all(
-                    service_key=key, page_size=page_size,
-                    sleep_seconds=sleep, lookback_days=lookback,
-                )
-                dbmod.upsert_bids(db_path, rows)
-                total += len(rows)
-                log_lines.append(f"✅ 국방전자조달(d2b): {len(rows):,}건")
-            except Exception as e:
-                msg = f"❌ 국방전자조달(d2b) 오류: {type(e).__name__}: {e}"
-                errors.append(msg); log_lines.append(msg)
+            _run_stage("방위사업청(d2b)", lambda: d2b_api.collect_all(
+                service_key=key, page_size=page_size,
+                sleep_seconds=sleep, lookback_days=lookback,
+            ))
 
     if sources.get("kwater_api"):
         key = get_secret("G2B_SERVICE_KEY") or get_secret("KWATER_SERVICE_KEY")
         kw_cfg = (config.get("collection", {}).get("kwater") or {})
         if not key or not kw_cfg.get("base_url"):
-            log_lines.append("⏩ K-water: 키 또는 base_url 미설정 — skip")
+            _log("⏩ K-water: 키 또는 base_url 미설정 — skip")
         else:
-            try:
-                rows = kwater_api.collect(
-                    service_key=key,
-                    base_url=kw_cfg["base_url"],
-                    type_param=kw_cfg.get("type_param", "_type"),
-                    page_size=page_size,
-                    sleep_seconds=sleep,
-                    lookback_days=lookback,
-                )
-                dbmod.upsert_bids(db_path, rows)
-                total += len(rows)
-                log_lines.append(f"✅ K-water: {len(rows):,}건")
-            except Exception as e:
-                msg = f"❌ K-water 오류: {type(e).__name__}: {e}"
-                errors.append(msg); log_lines.append(msg)
+            _run_stage("K-water", lambda: kwater_api.collect(
+                service_key=key,
+                base_url=kw_cfg["base_url"],
+                type_param=kw_cfg.get("type_param", "_type"),
+                page_size=page_size,
+                sleep_seconds=sleep,
+                lookback_days=lookback,
+            ))
 
     if sources.get("kepco_api"):
         kepco_key = get_secret("KEPCO_API_KEY")
         kepco_cfg = (config.get("collection", {}).get("kepco") or {})
         if not kepco_key:
-            log_lines.append("⏩ KEPCO: KEPCO_API_KEY 없음 — skip (bigdata.kepco.co.kr에서 별도 발급)")
+            _log("⏩ KEPCO: KEPCO_API_KEY 없음 — skip (bigdata.kepco.co.kr 발급 필요)")
         else:
-            try:
-                rows = kepco_api.collect(
-                    api_key=kepco_key,
-                    base_url=kepco_cfg.get("base_url") or kepco_api.DEFAULT_BASE_URL,
-                    company_ids=kepco_cfg.get("company_ids") or None,
-                    sleep_seconds=sleep,
-                    lookback_days=lookback,
-                )
-                dbmod.upsert_bids(db_path, rows)
-                total += len(rows)
-                log_lines.append(f"✅ KEPCO: {len(rows):,}건")
-            except Exception as e:
-                msg = f"❌ KEPCO 오류: {type(e).__name__}: {e}"
-                errors.append(msg); log_lines.append(msg)
+            _run_stage("KEPCO", lambda: kepco_api.collect(
+                api_key=kepco_key,
+                base_url=kepco_cfg.get("base_url") or kepco_api.DEFAULT_BASE_URL,
+                company_ids=kepco_cfg.get("company_ids") or None,
+                sleep_seconds=sleep,
+                lookback_days=lookback,
+            ))
 
     summary = f"수집 완료: {total:,}건"
     if errors:
@@ -461,10 +449,11 @@ def main() -> None:
     if not db_path.exists():
         st.info("아직 수집된 데이터가 없습니다. 아래 버튼을 눌러 수집을 시작하세요.")
         if st.button("🚀 지금 수집", type="primary", use_container_width=True):
-            with st.status("공고 수집 중... 약 2~3분 소요됩니다.", expanded=True) as status:
-                ok, summary, log_lines = run_collect_action(config, db_path)
-                for line in log_lines:
-                    st.write(line)
+            with st.status("공고 수집 중… 약 1~2분 소요됩니다.", expanded=True) as status:
+                def _stream(msg: str):
+                    st.write(msg)
+                ok, summary, _logs = run_collect_action(config, db_path,
+                                                         log_callback=_stream)
                 status.update(label=summary, state=("complete" if ok else "error"))
             if not ok:
                 st.error("일부 소스 수집 실패. 위 로그를 확인하세요.")
@@ -630,11 +619,14 @@ def main() -> None:
         st.markdown("---")
         st.markdown("### ⚙️ 작업")
         if st.button("🚀 지금 수집", width="stretch", type="primary"):
-            with st.status("공고 수집 중... 약 2~3분 소요됩니다.", expanded=True) as status:
-                ok, summary, log_lines = run_collect_action(config, db_path)
-                for line in log_lines:
-                    st.write(line)
-                status.update(label=summary, state=("complete" if ok else "error"))
+            with st.status("공고 수집 중… 약 1~2분 소요됩니다.", expanded=True) as status:
+                # 실시간 진행 표시 콜백
+                def _stream(msg: str):
+                    st.write(msg)
+                ok, summary, _logs = run_collect_action(config, db_path,
+                                                         log_callback=_stream)
+                status.update(label=summary,
+                              state=("complete" if ok else "error"))
             if not ok:
                 st.error("일부 소스 수집 실패. 위 로그를 확인하세요.")
             st.rerun()

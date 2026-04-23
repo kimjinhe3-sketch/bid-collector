@@ -14,7 +14,7 @@ def http_get_json(
     timeout: int = DEFAULT_TIMEOUT,
     sleep_seconds: float = 1.5,
     user_agent: str = DEFAULT_UA,
-    max_retries: int = 2,
+    max_retries: int = 1,
 ) -> dict:
     # Use wildcard Accept — 일부 한국 공공 API(KEPCO)가 application/json을
     # 거부 (실제 응답이 text/plain이라도 JSON 본문을 포함).
@@ -40,7 +40,7 @@ def http_get_text(
     timeout: int = DEFAULT_TIMEOUT,
     sleep_seconds: float = 1.5,
     user_agent: str = DEFAULT_UA,
-    max_retries: int = 2,
+    max_retries: int = 1,
 ) -> str:
     headers = {"User-Agent": user_agent}
     last_err: Exception | None = None
