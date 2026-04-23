@@ -456,14 +456,28 @@ def main() -> None:
         keyword = st.text_input("제목 검색", placeholder="예: 데이터")
 
         st.markdown("---")
-        st.markdown("**키워드 필터 (config)**")
-        st.markdown(
-            render_kw_chips(
-                config.get("filters", {}).get("include_keywords", []),
-                config.get("filters", {}).get("exclude_keywords", []),
-            ),
-            unsafe_allow_html=True,
+        st.markdown("**포함 키워드** (제목에 하나라도 있으면 통과)")
+        cfg_include = config.get("filters", {}).get("include_keywords", [])
+        include_input = st.text_area(
+            "include_keywords",
+            value=", ".join(cfg_include),
+            help="쉼표로 구분. 대시보드에서 직접 추가/삭제 가능.",
+            height=70,
+            label_visibility="collapsed",
         )
+        live_include = [k.strip() for k in include_input.split(",") if k.strip()]
+
+        st.markdown("**제외 키워드** (제목에 하나라도 있으면 제외)")
+        cfg_exclude = config.get("filters", {}).get("exclude_keywords", [])
+        exclude_input = st.text_area(
+            "exclude_keywords",
+            value=", ".join(cfg_exclude),
+            height=60,
+            label_visibility="collapsed",
+        )
+        live_exclude = [k.strip() for k in exclude_input.split(",") if k.strip()]
+
+        st.markdown(render_kw_chips(live_include, live_exclude), unsafe_allow_html=True)
         use_config_filter = st.checkbox("위 키워드 필터 적용", value=True)
 
         st.markdown("---")
@@ -527,15 +541,18 @@ def main() -> None:
     st.markdown("### 📋 키워드 히트 목록")
     rows = load_rows(str(db_path), since_str, tuple(bid_types), keyword, 20_000)
 
-    # Apply config filter on top (if checked)
+    # Apply keyword filter (live-editable) on top of sidebar bid_types
     if use_config_filter:
-        filter_cfg = dict(config.get("filters", {}))
-        filter_cfg.pop("bid_types", None)  # sidebar already handled
-        filter_cfg["min_amount_eok"] = min_eok
-        filter_cfg["max_amount_eok"] = max_eok
+        filter_cfg = {
+            "include_keywords": live_include,
+            "exclude_keywords": live_exclude,
+            "min_amount_eok": min_eok,
+            "max_amount_eok": max_eok,
+            "case_sensitive": bool(config.get("filters", {}).get("case_sensitive", False)),
+            # bid_types는 사이드바에서 이미 적용되어 DB에서 필터됨
+        }
         rows = keyword_filter.apply_filters(rows, filter_cfg)
     else:
-        # still respect amount slider
         rows = keyword_filter.apply_filters(rows, {
             "min_amount_eok": min_eok, "max_amount_eok": max_eok,
         })
@@ -574,9 +591,8 @@ def main() -> None:
                     st.code(url, language="text")
     else:
         hint = []
-        inc = config.get("filters", {}).get("include_keywords", [])
-        if use_config_filter and inc:
-            hint.append(f"포함 키워드({', '.join(inc)})와 겹치는 제목이 없을 수 있습니다")
+        if use_config_filter and live_include:
+            hint.append(f"포함 키워드({', '.join(live_include)})와 겹치는 제목이 없을 수 있습니다")
         if bid_types:
             hint.append("사이드바 업종 선택을 바꿔보세요")
         if keyword:
