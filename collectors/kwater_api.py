@@ -23,7 +23,7 @@ from collectors.base import http_get_json
 
 logger = get_logger("bid_collector.kwater_api")
 
-DEFAULT_BASE_URL = "https://apis.data.go.kr/B500001/eBid/tndr3"
+DEFAULT_BASE_URL = "https://apis.data.go.kr/B500001/ebid/tndr3"
 
 # (path, source_key, bid_type_label)
 OPERATIONS: list[tuple[str, str, str]] = [

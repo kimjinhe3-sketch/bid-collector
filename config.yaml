@@ -18,7 +18,8 @@ collection:
   kwater:
     # 한국수자원공사 K-water 전자조달 입찰공고 (data.go.kr 15101635)
     # operations 4개 자동 순회: cntrwkList/gdsList/servcList/dmscptList
-    base_url: "https://apis.data.go.kr/B500001/eBid/tndr3"
+    # 주의: 경로는 "ebid" (소문자). 대문자는 500 에러.
+    base_url: "https://apis.data.go.kr/B500001/ebid/tndr3"
     type_param: "_type"
 
 filters:
