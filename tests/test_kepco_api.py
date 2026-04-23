@@ -98,6 +98,40 @@ def test_sends_correct_params():
     assert "noticeEndDate" in p
 
 
+def test_detail_url_prefers_공고_filename_and_upgrades_to_https():
+    """filename1~5 중 '공고' 포함 파일 우선, 없으면 첫 번째. HTTP→HTTPS."""
+    # Case 1: 공고문 파일이 2번째 — 우선 선택되어야 함
+    data = {"data": [{
+        "no": "N1", "name": "test",
+        "filenlink1": "http://srm.kepco.net/printDownloadAttachment.do?id=SPEC",
+        "filename1": "규격서_spec.pdf",
+        "filenlink2": "http://srm.kepco.net/printDownloadAttachment.do?id=NOTICE",
+        "filename2": "입찰공고문.pdf",
+    }]}
+    rows = kepco_api.collect(api_key="K", sleep_seconds=0, http_client=_client(data))
+    url = rows[0]["detail_url"]
+    assert url.startswith("https://")  # HTTPS 변환
+    assert url.endswith("id=NOTICE")   # 공고문 파일 선택됨
+
+    # Case 2: "공고" 포함 파일이 없으면 fallback = filenlink1
+    data2 = {"data": [{
+        "no": "N2", "name": "test",
+        "filenlink1": "http://srm.kepco.net/printDownloadAttachment.do?id=FIRST",
+        "filename1": "규격서.pdf",
+        "filenlink2": "http://srm.kepco.net/printDownloadAttachment.do?id=SECOND",
+        "filename2": "별첨.pdf",
+    }]}
+    rows2 = kepco_api.collect(api_key="K", sleep_seconds=0, http_client=_client(data2))
+    url2 = rows2[0]["detail_url"]
+    assert url2.startswith("https://")
+    assert url2.endswith("id=FIRST")
+
+    # Case 3: 파일 없음 → None
+    rows3 = kepco_api.collect(api_key="K", sleep_seconds=0,
+                                http_client=_client({"data": [{"no": "N3", "name": "t"}]}))
+    assert rows3[0]["detail_url"] is None
+
+
 def test_tolerates_http_error():
     def broken(url, params, **kwargs):
         raise RuntimeError("down")

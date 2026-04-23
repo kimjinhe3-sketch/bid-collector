@@ -199,6 +199,14 @@ def invalidate_all_caches():
 # Helpers
 # ────────────────────────────────────────────────────────────────
 
+def _fix_kepco_url(url):
+    """KEPCO filenlink는 http:// 로 반환되는 경우가 있음. 클라우드 앱이 HTTPS라
+    혼합콘텐츠 경고로 브라우저가 막으므로 강제 HTTPS 변환 (safety net)."""
+    if isinstance(url, str) and url.startswith("http://srm.kepco.net"):
+        return "https://" + url[7:]
+    return url
+
+
 def _fix_alio_url(url, title) -> str | None:
     """ALIO bidView.do URLs are 404 (legacy). Rewrite to the search-URL form
     at READ time so this works even if the DB migration didn't run.
@@ -264,10 +272,11 @@ def rows_to_dataframe(rows: list[dict]) -> pd.DataFrame:
         df["금액(억원)"] = df["estimated_price"].apply(_to_eok)
     if "source" in df.columns:
         df["source_label"] = df["source"].map(SOURCE_LABELS).fillna(df["source"])
-    # Rewrite stale ALIO URLs on the fly (safety net in case DB migration didn't run).
+    # Rewrite stale URLs on the fly (safety net).
     if "detail_url" in df.columns and "title" in df.columns:
         df["detail_url"] = [
-            _fix_alio_url(u, t) for u, t in zip(df["detail_url"], df["title"])
+            _fix_kepco_url(_fix_alio_url(u, t))
+            for u, t in zip(df["detail_url"], df["title"])
         ]
     return df[[c for c in cols if c in df.columns]]
 

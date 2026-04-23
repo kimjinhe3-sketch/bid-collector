@@ -53,6 +53,19 @@ def test_rows_to_dataframe_maps_source_label():
     assert "K-apt" in list(df["source_label"])
 
 
+def test_rows_to_dataframe_upgrades_kepco_http_to_https():
+    rows = [
+        {**_row(1, source="kepco_api"), "title": "KEPCO 공고",
+         "detail_url": "http://srm.kepco.net/printDownloadAttachment.do?id=abc"},
+        {**_row(2, source="kepco_api"), "title": "KEPCO 공고 2",
+         "detail_url": "https://srm.kepco.net/printDownloadAttachment.do?id=xyz"},
+    ]
+    df = dashboard.rows_to_dataframe(rows)
+    urls = list(df["detail_url"])
+    assert urls[0] == "https://srm.kepco.net/printDownloadAttachment.do?id=abc"
+    assert urls[1] == "https://srm.kepco.net/printDownloadAttachment.do?id=xyz"
+
+
 def test_rows_to_dataframe_rewrites_stale_alio_bidview_urls():
     rows = [
         {

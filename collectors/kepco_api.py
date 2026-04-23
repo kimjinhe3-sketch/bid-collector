@@ -36,10 +36,30 @@ FIELD_MAP = {
     "estimated_price": ("presumedPrice", "bidLimitAmt", "contractAmt", "budgetAmt"),
     "open_date":       ("beginDatetime", "noticeDate", "noticeBeginDate"),
     "close_date":      ("endDatetime", "bidAttendReqCloseDatetime", "closeDate"),
-    # filenlink1 = 공고문/첨부 PDF (srm.kepco.net/printDownloadAttachment.do?id=X)
-    # KEPCO는 공고 본문 공개 페이지가 없고 첨부 PDF가 공고 내용을 담고 있음.
-    "detail_url":      ("filenlink1", "noticeUrl", "contractUrl", "url"),
+    # detail_url은 _pick_attachment_url()로 별도 선택 (FIELD_MAP에서 빠짐)
 }
+
+
+def _pick_attachment_url(item: dict) -> str | None:
+    """filename1~5 중 공고/안내 문서를 우선 선택해 filenlink URL 반환.
+
+    - "공고" 또는 "안내" 포함 파일 > 첫 번째 첨부
+    - HTTP URL은 HTTPS로 강제 변환 (혼합 콘텐츠 경고 회피)
+    """
+    preferred = None
+    fallback = None
+    for i in range(1, 6):
+        fname = (item.get(f"filename{i}") or "")
+        flink = (item.get(f"filenlink{i}") or "").strip()
+        if not flink:
+            continue
+        if flink.startswith("http://"):
+            flink = "https://" + flink[7:]
+        if preferred is None and ("공고" in fname or "안내" in fname):
+            preferred = flink
+        if fallback is None:
+            fallback = flink
+    return preferred or fallback
 
 # purchaseType → 업종 라벨.
 # 실제 응답 확인값(2026-04): Product, ConstructionService.
@@ -108,7 +128,7 @@ def _normalize(item: dict) -> dict | None:
         "open_date": _pick(item, FIELD_MAP["open_date"]),
         "close_date": _pick(item, FIELD_MAP["close_date"]),
         "bid_type": bid_type,
-        "detail_url": _pick(item, FIELD_MAP["detail_url"]),
+        "detail_url": _pick_attachment_url(item),
     }
 
 
