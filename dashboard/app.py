@@ -217,26 +217,27 @@ def _fix_alio_url(url, title) -> str | None:
     return url
 
 
-def _fmt_amount(price) -> str:
-    """None/0/NaN → '링크 참조', 그 외 → 'N.NN 억원' (항상 억원 단위)."""
+def _to_eok(price):
+    """정수/실수 가격 → 억 단위 float, None/0/NaN → None (정렬 시 최하단으로)."""
     import math
     try:
         p = float(price) if price is not None else None
     except (TypeError, ValueError):
-        p = None
+        return None
     if p is None or (isinstance(p, float) and math.isnan(p)) or p <= 0:
-        return "링크 참조"
-    return f"{p / EOK:.2f} 억원"
+        return None
+    return round(p / EOK, 2)
 
 
 def rows_to_dataframe(rows: list[dict]) -> pd.DataFrame:
-    cols = ["bid_no", "title", "org_name", "금액", "close_date",
+    cols = ["bid_no", "title", "org_name", "금액(억원)", "close_date",
             "bid_type", "source_label", "detail_url"]
     if not rows:
         return pd.DataFrame(columns=cols)
     df = pd.DataFrame(rows)
     if "estimated_price" in df.columns:
-        df["금액"] = df["estimated_price"].apply(_fmt_amount)
+        # 숫자형 컬럼 — None은 NaN, 정렬 시 pandas 기본으로 최하단에 배치됨
+        df["금액(억원)"] = df["estimated_price"].apply(_to_eok)
     if "source" in df.columns:
         df["source_label"] = df["source"].map(SOURCE_LABELS).fillna(df["source"])
     # Rewrite stale ALIO URLs on the fly (safety net in case DB migration didn't run).
@@ -491,7 +492,6 @@ def main() -> None:
 
     # ── Session state defaults ──
     # Live-reactive: 모든 필터 입력은 f_*_input key로 session_state에 자동 바인드.
-    # 입력 변경 → 자동 rerun → DB 재조회. 별도 "applied" 복사 불필요.
     today = date.today()
     cfg_filters = config.get("filters", {})
     cfg_include = cfg_filters.get("include_keywords", [])
@@ -505,7 +505,7 @@ def main() -> None:
 
     _init_min_eok = int(cfg_filters.get("min_amount_eok") or 0)
     _init_max_eok = int(cfg_filters.get("max_amount_eok") or 9999)
-    _defaults = {
+    _filter_defaults = {
         "f_bid_types_input": default_types,
         "f_keyword_input": "",
         "f_org_query_input": "",
@@ -513,59 +513,61 @@ def main() -> None:
         "f_exclude_text_input": ", ".join(cfg_exclude),
         "f_amount_slider_input": (_init_min_eok, _init_max_eok),
         "f_row_limit_input": 20_000,
-        "source_filter": [],
+        "f_sort_order": "최근 등록순",
     }
-    for _k, _v in _defaults.items():
+    _misc_defaults = {
+        # 그룹별 체크박스 (기본: 전부 해제 = 전체 표시)
+        "mcard_나라장터": False,
+        "mcard_누리장터": False,
+        "mcard_기타": False,
+    }
+    for _k, _v in {**_filter_defaults, **_misc_defaults}.items():
         st.session_state.setdefault(_k, _v)
 
-    # ── Section 1: 4개 그룹 메트릭 카드 (전체/나라장터/누리장터/기타) ──
-    st.markdown("### 📊 오늘의 수집 현황 &nbsp;<small style='color:#6b7280'>— 카드 클릭으로 그룹 필터</small>",
-                unsafe_allow_html=True)
+    # ── Section 1: 상단 그룹 필터 체크박스 (중복 선택 가능) ──
+    st.markdown("### 📊 오늘의 수집 현황")
     today_counts = load_counts(str(db_path), today.isoformat())
     total_counts = load_counts(str(db_path), None)
-    current_sources = st.session_state["source_filter"]
 
-    # 현재 활성 그룹 판정 (source_filter 가 특정 그룹 전체와 일치하면 그 그룹)
-    current_set = set(current_sources)
-    active_group = None
-    if current_set:
-        for _g, _srcs in SOURCE_GROUPS.items():
-            if current_set == set(_srcs):
-                active_group = _g
-                break
+    group_counts = {g: sum(today_counts.get(s, 0) for s in srcs)
+                    for g, srcs in SOURCE_GROUPS.items()}
+    total_today = sum(today_counts.values())
 
-    if today_counts or total_counts:
-        total_today = sum(today_counts.values())
-        group_counts = {g: sum(today_counts.get(s, 0) for s in srcs)
-                        for g, srcs in SOURCE_GROUPS.items()}
+    cbx_cols = st.columns([1.3, 1.3, 1.3, 1, 1])
+    for i, g in enumerate(SOURCE_GROUPS.keys()):
+        cbx_cols[i].checkbox(f"{g} ({group_counts.get(g, 0):,})",
+                              key=f"mcard_{g}")
+    # 모두 선택 / 모두 해제 (form 바깥, 즉시 rerun — 필터 입력값은 key 기반이라 자동 보존)
+    if cbx_cols[3].button("전체", width="stretch", key="mcard_all_btn",
+                           help="3개 그룹 모두 체크 (전체 표시와 동일)"):
+        for g in SOURCE_GROUPS:
+            st.session_state[f"mcard_{g}"] = True
+        st.rerun()
+    if cbx_cols[4].button("해제", width="stretch", key="mcard_clear_btn",
+                           help="모두 해제 (= 전체 표시)"):
+        for g in SOURCE_GROUPS:
+            st.session_state[f"mcard_{g}"] = False
+        st.rerun()
 
-        items = [
-            ("__ALL__",  "🌐 전체",      total_today,              active_group is None and not current_set),
-            ("나라장터", "🏛️ 나라장터",  group_counts["나라장터"], active_group == "나라장터"),
-            ("누리장터", "🏘️ 누리장터",  group_counts["누리장터"], active_group == "누리장터"),
-            ("기타",     "📦 기타",      group_counts["기타"],     active_group == "기타"),
-        ]
-        cols = st.columns(4)
-        for i, (key, label, count, active) in enumerate(items):
-            with cols[i]:
-                btn_label = f"**{label}** · {count:,}건" + (" ✓" if active else "")
-                if st.button(btn_label, key=f"mcard_{key}",
-                             width="stretch",
-                             type=("primary" if active else "secondary")):
-                    if key == "__ALL__" or active:
-                        st.session_state["source_filter"] = []
-                    else:
-                        st.session_state["source_filter"] = SOURCE_GROUPS[key][:]
-                    st.rerun()
+    # 체크된 그룹들의 소스 유니언 → source_filter (전부 체크/해제면 전체)
+    _checked = [g for g in SOURCE_GROUPS
+                if st.session_state.get(f"mcard_{g}", False)]
+    if not _checked or set(_checked) == set(SOURCE_GROUPS.keys()):
+        st.session_state["source_filter"] = []
+        current_sources = []
     else:
-        st.info(f"{today} 수집 기록이 없습니다. 사이드바의 '지금 수집'을 눌러보세요.")
+        srcs = []
+        for g in _checked:
+            srcs.extend(SOURCE_GROUPS[g])
+        st.session_state["source_filter"] = srcs
+        current_sources = srcs
 
-    # 하단 요약 — 그룹별 간단 수치
+    # 요약 캡션
     group_totals = {g: sum(total_counts.get(s, 0) for s in srcs)
                     for g, srcs in SOURCE_GROUPS.items()}
     st.markdown(
-        f"<div class='section-hint desktop-only'>DB 전체: "
-        f"<b>{sum(total_counts.values()):,}건</b> — "
+        f"<div class='section-hint'>오늘 <b>{total_today:,}건</b> · "
+        f"DB 전체 <b>{sum(total_counts.values()):,}건</b> — "
         + " · ".join(f"{g} {v:,}" for g, v in group_totals.items())
         + "</div>",
         unsafe_allow_html=True,
@@ -598,6 +600,14 @@ def main() -> None:
         st.slider("금액 범위 (억원)", 0, 9999, key="f_amount_slider_input", step=1)
         st.number_input("최대 조회 건수", min_value=100, max_value=50_000,
                         step=1000, key="f_row_limit_input")
+
+        # 필터 기본값 복원 (상단 체크박스는 건드리지 않음)
+        if st.button("↩️ 필터 기본값", width="stretch", key="reset_filters",
+                     help="필터 입력만 초기화. 상단 체크박스는 유지."):
+            for _k, _v in _filter_defaults.items():
+                st.session_state[_k] = _v
+            invalidate_all_caches()
+            st.rerun()
 
         st.markdown("---")
         st.markdown("### ⚙️ 작업")
@@ -669,7 +679,10 @@ def main() -> None:
                 "bid_no": st.column_config.TextColumn("공고번호", width="small"),
                 "title": st.column_config.TextColumn("제목", width="large"),
                 "org_name": st.column_config.TextColumn("기관", width="medium"),
-                "금액": st.column_config.TextColumn("금액", width="small"),
+                "금액(억원)": st.column_config.NumberColumn(
+                    "금액(억원)", format="%.2f", width="small",
+                    help="빈 칸은 공고문 내 '금액 링크 참조'. 정렬 시 자동으로 최하단.",
+                ),
                 "close_date": st.column_config.TextColumn("마감", width="small"),
                 "bid_type": st.column_config.TextColumn("업종", width="small"),
                 "source_label": st.column_config.TextColumn("출처", width="small"),

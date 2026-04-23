@@ -36,7 +36,9 @@ FIELD_MAP = {
     "estimated_price": ("presumedPrice", "bidLimitAmt", "contractAmt", "budgetAmt"),
     "open_date":       ("beginDatetime", "noticeDate", "noticeBeginDate"),
     "close_date":      ("endDatetime", "bidAttendReqCloseDatetime", "closeDate"),
-    "detail_url":      ("noticeUrl", "contractUrl", "url"),
+    # filenlink1 = 공고문/첨부 PDF (srm.kepco.net/printDownloadAttachment.do?id=X)
+    # KEPCO는 공고 본문 공개 페이지가 없고 첨부 PDF가 공고 내용을 담고 있음.
+    "detail_url":      ("filenlink1", "noticeUrl", "contractUrl", "url"),
 }
 
 # purchaseType → 업종 라벨.

@@ -24,11 +24,12 @@ def test_rows_to_dataframe_empty():
     df = dashboard.rows_to_dataframe([])
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 0
-    assert "금액" in df.columns
+    assert "금액(억원)" in df.columns
     assert "title" in df.columns
 
 
 def test_rows_to_dataframe_formats_amount_column():
+    import math
     rows = [
         {**_row(1), "estimated_price": 850_000_000},
         {**_row(2), "estimated_price": 24_150_000},
@@ -36,12 +37,13 @@ def test_rows_to_dataframe_formats_amount_column():
         {**_row(4), "estimated_price": 0},
     ]
     df = dashboard.rows_to_dataframe(rows)
-    vals = list(df["금액"])
-    # 모두 억원 2자리로 통일
-    assert vals[0] == "8.50 억원"
-    assert vals[1] == "0.24 억원"
-    assert vals[2] == "링크 참조"
-    assert vals[3] == "링크 참조"
+    vals = list(df["금액(억원)"])
+    # 숫자형 (억 단위), 2자리 소수
+    assert vals[0] == 8.50
+    assert vals[1] == 0.24
+    # None/0 → NaN (정렬 시 pandas 기본으로 최하단)
+    assert vals[2] is None or (isinstance(vals[2], float) and math.isnan(vals[2]))
+    assert vals[3] is None or (isinstance(vals[3], float) and math.isnan(vals[3]))
 
 
 def test_rows_to_dataframe_maps_source_label():
