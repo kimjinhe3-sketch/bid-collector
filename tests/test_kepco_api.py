@@ -15,31 +15,46 @@ def test_skipped_without_api_key():
     assert rows == []
 
 
-def test_parses_data_list_response():
+def test_parses_real_kepco_schema():
+    """실제 bigdata.kepco.co.kr 응답 구조 기반 테스트."""
     data = {
         "data": [
-            {"noticeNo": "KEPCO-2026-001",
-             "noticeName": "송전선로 전기 공사 입찰",
+            {"purchaseType": "Product",
+             "companyId": "COM04",
+             "no": "G042600170",
+             "name": "기력 2호기 암모니아 주입설비 Metering Pump 구매",
+             "presumedPrice": 39820000,
+             "noticeDate": "20260401",
+             "beginDatetime": "2026-04-08 10:00:00",
+             "endDatetime": "2026-04-10 10:00:00",
+             "bidAttendReqCloseDatetime": "2026-04-08 10:00:00"},
+            {"purchaseType": "Construction",
              "companyId": "COM01",
-             "bidLimitAmt": "5000000000",
-             "noticeBeginDate": "20260422"},
-            {"noticeNo": "KEPCO-2026-002",
-             "noticeName": "변전소 통신설비 구매",
+             "no": "C012600001",
+             "name": "변전소 옥외철구 정비공사",
+             "presumedPrice": 850000000},
+            {"purchaseType": "Service",
              "companyId": "COM02",
-             "bidLimitAmt": "800000000",
-             "noticeBeginDate": "20260422"},
+             "no": "S022600001",
+             "name": "설비 점검 용역"},
         ]
     }
-    client = _client(data)
-    rows = kepco_api.collect(api_key="KEY", sleep_seconds=0, http_client=client)
-    assert len(rows) == 2
-    first = rows[0]
-    assert first["source"] == "kepco_api"
-    assert first["bid_type"] == "KEPCO"
-    assert first["bid_no"] == "kepco-KEPCO-2026-001"
-    assert first["org_name"] == "한국전력공사"  # COM01 매핑
-    assert first["estimated_price"] == 5_000_000_000
-    assert rows[1]["org_name"] == "한전KDN"     # COM02 매핑
+    rows = kepco_api.collect(api_key="KEY", sleep_seconds=0,
+                              http_client=_client(data))
+    assert len(rows) == 3
+    # Product → 물품
+    assert rows[0]["bid_type"] == "물품"
+    assert rows[0]["bid_no"] == "kepco-G042600170"
+    assert rows[0]["estimated_price"] == 39_820_000
+    assert rows[0]["open_date"] == "2026-04-08 10:00:00"
+    assert rows[0]["close_date"] == "2026-04-10 10:00:00"
+    assert rows[0]["org_name"] == "한전산업개발"  # COM04
+    # Construction → 공사
+    assert rows[1]["bid_type"] == "공사"
+    assert rows[1]["org_name"] == "한국전력공사"  # COM01
+    # Service → 용역
+    assert rows[2]["bid_type"] == "용역"
+    assert rows[2]["org_name"] == "한전KDN"       # COM02
 
 
 def test_parses_result_list_response():

@@ -27,16 +27,24 @@ logger = get_logger("bid_collector.kepco_api")
 
 DEFAULT_BASE_URL = "https://bigdata.kepco.co.kr/openapi/v1/electContract.do"
 
-# KEPCO 응답의 정확한 스키마는 문서 확인 필요 — 가능한 필드명 후보를 모두 수용.
+# 2026-04 실제 응답 기반 필드 매핑. 앞에 나온 키가 우선.
 FIELD_MAP = {
-    "bid_no":          ("noticeNo", "no", "bidNo", "contractNo"),
-    "title":           ("noticeName", "name", "bidName", "title"),
-    "org_name":        ("companyName", "company", "companyId"),
-    "contract_method": ("progressState", "contractMethod"),
-    "estimated_price": ("bidLimitAmt", "contractAmt", "budgetAmt", "estPrice"),
-    "open_date":       ("noticeBeginDate", "noticeDate", "openDate"),
-    "close_date":      ("bidAttendReqCloseDatetime", "closeDate", "noticeEndDate"),
+    "bid_no":          ("no", "noticeNo", "bidNo", "contractNo"),
+    "title":           ("name", "noticeName", "bidName", "title"),
+    "org_name":        ("companyName", "company"),
+    "contract_method": ("purchaseType", "progressState", "contractMethod"),
+    "estimated_price": ("presumedPrice", "bidLimitAmt", "contractAmt", "budgetAmt"),
+    "open_date":       ("beginDatetime", "noticeDate", "noticeBeginDate"),
+    "close_date":      ("endDatetime", "bidAttendReqCloseDatetime", "closeDate"),
     "detail_url":      ("noticeUrl", "contractUrl", "url"),
+}
+
+# purchaseType → 업종 라벨 (실제 응답에 Product/Construction/Service 관찰됨)
+PURCHASE_TYPE_LABELS = {
+    "Product": "물품",
+    "Construction": "공사",
+    "Service": "용역",
+    "Goods": "물품",
 }
 
 COMPANY_LABELS = {
@@ -82,16 +90,19 @@ def _normalize(item: dict) -> dict | None:
         return None
     company_id = item.get("companyId") or ""
     org_name = COMPANY_LABELS.get(company_id) or _pick(item, FIELD_MAP["org_name"]) or "한국전력공사"
+    purchase_type = _pick(item, FIELD_MAP["contract_method"])
+    # 실제 응답의 purchaseType이면 한글 라벨, 아니면 원문 유지
+    bid_type = PURCHASE_TYPE_LABELS.get(purchase_type or "", "KEPCO")
     return {
         "source": "kepco_api",
         "bid_no": f"kepco-{bid_no}",
         "title": str(title).strip(),
         "org_name": org_name,
-        "contract_method": _pick(item, FIELD_MAP["contract_method"]),
+        "contract_method": purchase_type,
         "estimated_price": _safe_int(_pick(item, FIELD_MAP["estimated_price"])),
         "open_date": _pick(item, FIELD_MAP["open_date"]),
         "close_date": _pick(item, FIELD_MAP["close_date"]),
-        "bid_type": "KEPCO",
+        "bid_type": bid_type,
         "detail_url": _pick(item, FIELD_MAP["detail_url"]),
     }
 
