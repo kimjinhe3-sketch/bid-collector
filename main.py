@@ -18,7 +18,7 @@ load_dotenv(ROOT / ".env")
 
 from utils.logger import setup_logger, get_logger
 from utils.config_loader import load_config, cron_kwargs
-from collectors import g2b_api, kapt_api, alio_crawler, g2b_crawler, d2b_api, kwater_api, kepco_api
+from collectors import g2b_api, kapt_api, alio_crawler, g2b_crawler, d2b_api, kwater_api, kepco_api, prvt_api
 from db import database
 from filters import keyword_filter
 from notifiers import email_notifier, slack_notifier
@@ -147,6 +147,21 @@ def run_collect(config: dict) -> int:
                 total_collected += len(rows)
             except Exception:
                 logger.exception("kwater_api collection crashed")
+
+    if sources.get("prvt_api"):
+        key = os.environ.get("G2B_SERVICE_KEY")
+        if not key:
+            logger.warning("G2B_SERVICE_KEY missing — skipping prvt_api (누리장터)")
+        else:
+            try:
+                rows = prvt_api.collect_all(
+                    service_key=key, page_size=page_size,
+                    sleep_seconds=sleep_seconds, lookback_days=lookback_days,
+                )
+                database.upsert_bids(db_path, rows)
+                total_collected += len(rows)
+            except Exception:
+                logger.exception("prvt_api collection crashed")
 
     if sources.get("kepco_api"):
         kepco_key = os.environ.get("KEPCO_API_KEY")

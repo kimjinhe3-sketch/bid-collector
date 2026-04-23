@@ -7,6 +7,7 @@ collection:
     d2b_api: true        # 국방전자조달 (G2B 서비스키 공용)
     kwater_api: true     # 한국수자원공사 K-water (G2B 서비스키 공용, 4 오퍼레이션)
     kepco_api: true      # 한국전력공사 KEPCO (bigdata.kepco.co.kr 전용 키 필요)
+    prvt_api: true       # 누리장터 민간입찰공고 (G2B 서비스키 공용, 4 오퍼레이션)
   request_sleep_seconds: 0.8   # 페이지 간 대기 (너무 낮으면 rate limit 걸림)
   page_size: 100
   lookback_days: 1

@@ -46,7 +46,11 @@ SOURCE_LABELS = {
     "g2b_api_servc": "나라장터 용역",
     "g2b_api_cnstwk": "나라장터 공사",
     "g2b_api_frgcpt": "나라장터 외자",
-    "g2b_api_etc":    "나라장터 기타·민간",
+    "g2b_api_etc":    "나라장터 기타",
+    "prvt_api_servc":  "누리장터 용역",
+    "prvt_api_thng":   "누리장터 물품",
+    "prvt_api_cnstwk": "누리장터 공사",
+    "prvt_api_etc":    "누리장터 기타",
     "kapt_api": "K-apt",
     "alio": "ALIO",
     "g2b_crawl": "나라장터 크롤",
@@ -264,7 +268,7 @@ def run_collect_action(config: dict, db_path: Path,
     """
     import time as _time
     from collectors import (g2b_api, kapt_api, alio_crawler,
-                            d2b_api, kwater_api, kepco_api)
+                            d2b_api, kwater_api, kepco_api, prvt_api)
     from db import database as dbmod
 
     sleep = float(config.get("collection", {}).get("request_sleep_seconds", 0.8))
@@ -307,6 +311,16 @@ def run_collect_action(config: dict, db_path: Path,
             errors.append(msg); _log(msg)
         else:
             _run_stage("나라장터(G2B)", lambda: g2b_api.collect_all(
+                service_key=key, page_size=page_size,
+                sleep_seconds=sleep, lookback_days=lookback,
+            ))
+
+    if sources.get("prvt_api"):
+        key = get_secret("G2B_SERVICE_KEY")
+        if not key:
+            _log("⏩ 누리장터(민간): G2B 키 없음 — skip")
+        else:
+            _run_stage("누리장터(민간)", lambda: prvt_api.collect_all(
                 service_key=key, page_size=page_size,
                 sleep_seconds=sleep, lookback_days=lookback,
             ))
