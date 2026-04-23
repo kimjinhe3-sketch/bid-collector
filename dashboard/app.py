@@ -180,14 +180,28 @@ def _fix_alio_url(url: str | None, title: str | None) -> str | None:
     return url
 
 
+def _fmt_amount(price) -> str:
+    """None/0/NaN → '링크 참조', 1억 이상 → 'N.NN 억', 그 미만 → 'N,NNN원'."""
+    import math
+    try:
+        p = float(price) if price is not None else None
+    except (TypeError, ValueError):
+        p = None
+    if p is None or (isinstance(p, float) and math.isnan(p)) or p <= 0:
+        return "링크 참조"
+    if p >= EOK:
+        return f"{p / EOK:.2f} 억"
+    return f"{int(p):,}원"
+
+
 def rows_to_dataframe(rows: list[dict]) -> pd.DataFrame:
-    cols = ["bid_no", "title", "org_name", "금액(억)", "close_date",
+    cols = ["bid_no", "title", "org_name", "금액", "close_date",
             "bid_type", "source_label", "detail_url"]
     if not rows:
         return pd.DataFrame(columns=cols)
     df = pd.DataFrame(rows)
     if "estimated_price" in df.columns:
-        df["금액(억)"] = (df["estimated_price"].fillna(0) / EOK).round(2)
+        df["금액"] = df["estimated_price"].apply(_fmt_amount)
     if "source" in df.columns:
         df["source_label"] = df["source"].map(SOURCE_LABELS).fillna(df["source"])
     # Rewrite stale ALIO URLs on the fly (safety net in case DB migration didn't run).
@@ -493,7 +507,7 @@ def main() -> None:
                 "bid_no": st.column_config.TextColumn("공고번호", width="small"),
                 "title": st.column_config.TextColumn("제목", width="large"),
                 "org_name": st.column_config.TextColumn("기관", width="medium"),
-                "금액(억)": st.column_config.NumberColumn("금액", format="%.2f 억"),
+                "금액": st.column_config.TextColumn("금액", width="small"),
                 "close_date": st.column_config.TextColumn("마감", width="small"),
                 "bid_type": st.column_config.TextColumn("업종", width="small"),
                 "source_label": st.column_config.TextColumn("출처", width="small"),

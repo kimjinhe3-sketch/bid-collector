@@ -24,18 +24,23 @@ def test_rows_to_dataframe_empty():
     df = dashboard.rows_to_dataframe([])
     assert isinstance(df, pd.DataFrame)
     assert len(df) == 0
-    assert "금액(억)" in df.columns
+    assert "금액" in df.columns
     assert "title" in df.columns
 
 
-def test_rows_to_dataframe_computes_eok_column():
+def test_rows_to_dataframe_formats_amount_column():
     rows = [
         {**_row(1), "estimated_price": 850_000_000},
         {**_row(2), "estimated_price": 24_150_000},
         {**_row(3), "estimated_price": None},
+        {**_row(4), "estimated_price": 0},
     ]
     df = dashboard.rows_to_dataframe(rows)
-    assert list(df["금액(억)"]) == [8.5, 0.24, 0.0]
+    vals = list(df["금액"])
+    assert vals[0] == "8.50 억"
+    assert vals[1] == "24,150,000원"
+    assert vals[2] == "링크 참조"
+    assert vals[3] == "링크 참조"
 
 
 def test_rows_to_dataframe_maps_source_label():

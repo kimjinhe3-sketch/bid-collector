@@ -91,7 +91,7 @@ def test_abcd_full_pipeline(tmp_path, monkeypatch):
     assert counts["alio"] == 10
 
     df = dashboard.rows_to_dataframe(unnotified[:20])
-    assert "금액(억)" in df.columns
+    assert "금액" in df.columns
     assert "source_label" in df.columns
     labels = set(df["source_label"].unique())
     assert {"나라장터 물품", "나라장터 용역", "나라장터 공사"} & labels
