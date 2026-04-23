@@ -533,21 +533,25 @@ def main() -> None:
                     for g, srcs in SOURCE_GROUPS.items()}
     total_today = sum(today_counts.values())
 
+    # Streamlit은 이미 렌더된 widget key에 직접 할당 불가 → on_click 콜백 사용.
+    def _select_all_groups():
+        for _g in SOURCE_GROUPS:
+            st.session_state[f"mcard_{_g}"] = True
+
+    def _clear_all_groups():
+        for _g in SOURCE_GROUPS:
+            st.session_state[f"mcard_{_g}"] = False
+
     cbx_cols = st.columns([1.3, 1.3, 1.3, 1, 1])
     for i, g in enumerate(SOURCE_GROUPS.keys()):
         cbx_cols[i].checkbox(f"{g} ({group_counts.get(g, 0):,})",
                               key=f"mcard_{g}")
-    # 모두 선택 / 모두 해제 (form 바깥, 즉시 rerun — 필터 입력값은 key 기반이라 자동 보존)
-    if cbx_cols[3].button("전체", width="stretch", key="mcard_all_btn",
-                           help="3개 그룹 모두 체크 (전체 표시와 동일)"):
-        for g in SOURCE_GROUPS:
-            st.session_state[f"mcard_{g}"] = True
-        st.rerun()
-    if cbx_cols[4].button("해제", width="stretch", key="mcard_clear_btn",
-                           help="모두 해제 (= 전체 표시)"):
-        for g in SOURCE_GROUPS:
-            st.session_state[f"mcard_{g}"] = False
-        st.rerun()
+    cbx_cols[3].button("전체", width="stretch", key="mcard_all_btn",
+                        on_click=_select_all_groups,
+                        help="3개 그룹 모두 체크 (전체 표시와 동일)")
+    cbx_cols[4].button("해제", width="stretch", key="mcard_clear_btn",
+                        on_click=_clear_all_groups,
+                        help="모두 해제 (= 전체 표시)")
 
     # 체크된 그룹들의 소스 유니언 → source_filter (전부 체크/해제면 전체)
     _checked = [g for g in SOURCE_GROUPS
@@ -601,13 +605,15 @@ def main() -> None:
         st.number_input("최대 조회 건수", min_value=100, max_value=50_000,
                         step=1000, key="f_row_limit_input")
 
-        # 필터 기본값 복원 (상단 체크박스는 건드리지 않음)
-        if st.button("↩️ 필터 기본값", width="stretch", key="reset_filters",
-                     help="필터 입력만 초기화. 상단 체크박스는 유지."):
+        # 필터 기본값 복원 — on_click 콜백 (widget key에 직접 할당 불가)
+        def _reset_filters_cb():
             for _k, _v in _filter_defaults.items():
                 st.session_state[_k] = _v
             invalidate_all_caches()
-            st.rerun()
+
+        st.button("↩️ 필터 기본값", width="stretch", key="reset_filters",
+                  on_click=_reset_filters_cb,
+                  help="모든 필터 입력을 config.yaml의 기본값으로 복원 (체크박스는 유지)")
 
         st.markdown("---")
         st.markdown("### ⚙️ 작업")
