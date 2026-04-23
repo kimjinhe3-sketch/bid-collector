@@ -478,10 +478,21 @@ def main() -> None:
                 "bid_type": st.column_config.TextColumn("업종", width="small"),
                 "source_label": st.column_config.TextColumn("출처", width="small"),
                 "detail_url": st.column_config.LinkColumn(
-                    "🔗", display_text="보기", width="small"
+                    "상세보기", display_text="🔗 열기", width="small"
                 ),
             },
         )
+        # ALIO 행의 URL 품질을 확인할 수 있는 디버그 섹션
+        alio_rows = [r for r in rows if r.get("source") == "alio"][:3]
+        if alio_rows:
+            with st.expander("🔍 ALIO 링크 진단 (문제 있을 때 펼쳐보기)", expanded=False):
+                for r in alio_rows:
+                    url = r.get("detail_url") or ""
+                    is_legacy = "bidView.do" in url
+                    is_new = "bidList.do?type=title" in url
+                    status = "❌ 레거시 URL (DB 마이그레이션 안됨)" if is_legacy else ("✅ 최신 URL" if is_new else "⚠️ 알 수 없는 형식")
+                    st.write(f"**{r.get('bid_no')}** · {status}")
+                    st.code(url, language="text")
     else:
         hint = []
         inc = config.get("filters", {}).get("include_keywords", [])
