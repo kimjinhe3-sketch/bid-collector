@@ -34,7 +34,9 @@ def test_collect_parses_real_fixture():
     assert r["org_name"]
     assert r["close_date"]  # bidInfoEndDt mapped
     assert r["open_date"]   # bdate mapped
-    assert r["detail_url"].startswith("https://www.alio.go.kr/occasional/bidView.do")
+    assert r["detail_url"].startswith("https://www.alio.go.kr/occasional/bidList.do")
+    assert "type=title" in r["detail_url"]
+    assert "word=" in r["detail_url"]
 
 
 def test_collect_stops_when_status_not_success():

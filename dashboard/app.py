@@ -204,8 +204,12 @@ def render_kw_chips(include: list[str], exclude: list[str]) -> str:
 # Actions (in-dashboard collect / notify)
 # ────────────────────────────────────────────────────────────────
 
-def run_collect_action(config: dict, db_path: Path) -> tuple[bool, str]:
-    """Run collection synchronously from within the dashboard."""
+def run_collect_action(config: dict, db_path: Path) -> tuple[bool, str, list[str]]:
+    """Run collection synchronously from within the dashboard.
+
+    Returns (ok, summary, per_source_log) so the UI can surface warnings
+    even when the overall run succeeds (e.g. one source failed).
+    """
     from collectors import g2b_api, kapt_api, alio_crawler
     from db import database as dbmod
 
@@ -217,30 +221,38 @@ def run_collect_action(config: dict, db_path: Path) -> tuple[bool, str]:
     dbmod.init_db(db_path)
     total = 0
     errors = []
+    log_lines = []
 
     if sources.get("g2b_api"):
         key = get_secret("G2B_SERVICE_KEY")
         if not key:
-            errors.append("G2B_SERVICE_KEY가 설정되지 않았습니다.")
+            msg = "❌ 나라장터(G2B): G2B_SERVICE_KEY 미설정 — 클라우드 Secrets 탭에 추가하세요."
+            errors.append(msg); log_lines.append(msg)
         else:
             try:
                 rows = g2b_api.collect_all(service_key=key, page_size=page_size,
                                             sleep_seconds=sleep, lookback_days=lookback)
                 dbmod.upsert_bids(db_path, rows)
                 total += len(rows)
+                log_lines.append(f"✅ 나라장터(G2B): {len(rows):,}건")
             except Exception as e:
-                errors.append(f"g2b_api: {e}")
+                msg = f"❌ 나라장터(G2B) 오류: {type(e).__name__}: {e}"
+                errors.append(msg); log_lines.append(msg)
 
     if sources.get("kapt_api"):
         key = get_secret("KAPT_SERVICE_KEY")
-        if key:
+        if not key:
+            log_lines.append("⏩ K-apt: 키 없음 — skip")
+        else:
             try:
                 rows = kapt_api.collect(service_key=key, page_size=page_size,
                                         sleep_seconds=sleep, lookback_days=lookback)
                 dbmod.upsert_bids(db_path, rows)
                 total += len(rows)
+                log_lines.append(f"✅ K-apt: {len(rows):,}건")
             except Exception as e:
-                errors.append(f"kapt_api: {e}")
+                msg = f"❌ K-apt 오류: {type(e).__name__}: {e}"
+                errors.append(msg); log_lines.append(msg)
 
     if sources.get("alio"):
         try:
@@ -253,14 +265,16 @@ def run_collect_action(config: dict, db_path: Path) -> tuple[bool, str]:
             )
             dbmod.upsert_bids(db_path, rows)
             total += len(rows)
+            log_lines.append(f"✅ ALIO: {len(rows):,}건")
         except Exception as e:
-            errors.append(f"alio: {e}")
+            msg = f"❌ ALIO 오류: {type(e).__name__}: {e}"
+            errors.append(msg); log_lines.append(msg)
 
-    msg = f"수집 완료: {total:,}건"
+    summary = f"수집 완료: {total:,}건"
     if errors:
-        msg += "  (일부 오류: " + "; ".join(errors[:2]) + ")"
+        summary += f" · 오류 {len(errors)}건"
     invalidate_all_caches()
-    return len(errors) == 0, msg
+    return len(errors) == 0, summary, log_lines
 
 
 def run_notify_action(config: dict, db_path: Path, dry_run: bool = True) -> tuple[int, str]:
@@ -300,6 +314,14 @@ def main() -> None:
     config = load_config(ROOT / "config.yaml")
     db_path = ROOT / (config.get("database", {}).get("path") or "data/bids.sqlite")
 
+    # ── Secret availability check (warn once per session) ──
+    if not get_secret("G2B_SERVICE_KEY"):
+        st.warning(
+            "⚠️ **나라장터(G2B) API 키가 설정되지 않았습니다.** "
+            "Streamlit Cloud 앱 설정 > Secrets 탭에 `G2B_SERVICE_KEY = \"...\"` 추가하세요. "
+            "현재는 ALIO 데이터만 수집됩니다."
+        )
+
     # ── Brand bar ──────────────────────────────────────────
     db_mtime = load_db_meta(str(db_path))
     last_update = humanize_since(db_mtime) if db_mtime else "없음"
@@ -321,8 +343,12 @@ def main() -> None:
         st.info("아직 수집된 데이터가 없습니다. 아래 버튼을 눌러 수집을 시작하세요.")
         if st.button("🚀 지금 수집", type="primary", use_container_width=True):
             with st.status("공고 수집 중... 약 2~3분 소요됩니다.", expanded=True) as status:
-                ok, msg = run_collect_action(config, db_path)
-                status.update(label=msg, state=("complete" if ok else "error"))
+                ok, summary, log_lines = run_collect_action(config, db_path)
+                for line in log_lines:
+                    st.write(line)
+                status.update(label=summary, state=("complete" if ok else "error"))
+            if not ok:
+                st.error("일부 소스 수집 실패. 위 로그를 확인하세요.")
             st.rerun()
         st.stop()
 
@@ -365,8 +391,12 @@ def main() -> None:
         st.markdown("### ⚙️ 작업")
         if st.button("🚀 지금 수집", use_container_width=True, type="primary"):
             with st.status("공고 수집 중... 약 2~3분 소요됩니다.", expanded=True) as status:
-                ok, msg = run_collect_action(config, db_path)
-                status.update(label=msg, state=("complete" if ok else "error"))
+                ok, summary, log_lines = run_collect_action(config, db_path)
+                for line in log_lines:
+                    st.write(line)
+                status.update(label=summary, state=("complete" if ok else "error"))
+            if not ok:
+                st.error("일부 소스 수집 실패. 위 로그를 확인하세요.")
             st.rerun()
 
         if st.button("📧 알림 미리보기 (dry-run)", use_container_width=True):

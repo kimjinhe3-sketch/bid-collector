@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import math
+import urllib.parse
 from datetime import date, datetime, timedelta
 from typing import Callable
 
@@ -30,7 +31,17 @@ logger = get_logger("bid_collector.alio")
 
 DEFAULT_URL = "https://www.alio.go.kr/occasional/findBidList.json"
 PAGE_SIZE = 10  # 서버 고정: 페이지당 10건
-DETAIL_URL_TEMPLATE = "https://www.alio.go.kr/occasional/bidView.do?seq={seq}"
+# ALIO doesn't expose a shareable per-bid detail URL (the site is an
+# Angular.js SPA that renders details client-side). The closest useful
+# landing page is the list view with the title pre-populated as a search.
+LIST_URL = "https://www.alio.go.kr/occasional/bidList.do"
+
+
+def _detail_url(title: str) -> str:
+    # Use up to 30 characters of the title as the search keyword so the row
+    # is likely the top hit when the user lands on the page.
+    keyword = (title or "")[:30]
+    return f"{LIST_URL}?type=title&word={urllib.parse.quote(keyword)}"
 
 
 def _normalize(item: dict) -> dict | None:
@@ -38,17 +49,18 @@ def _normalize(item: dict) -> dict | None:
     seq = item.get("seq")
     if not title or seq in (None, ""):
         return None
+    title_s = str(title).strip()
     return {
         "source": "alio",
         "bid_no": f"alio-{seq}",
-        "title": str(title).strip(),
+        "title": title_s,
         "org_name": item.get("pname"),
         "contract_method": None,
         "estimated_price": None,
         "open_date": item.get("bdate"),
         "close_date": item.get("bidInfoEndDt"),
         "bid_type": "공공기관",
-        "detail_url": DETAIL_URL_TEMPLATE.format(seq=seq),
+        "detail_url": _detail_url(title_s),
     }
 
 
