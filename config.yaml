@@ -1,0 +1,51 @@
+collection:
+  sources:
+    g2b_api: true
+    kapt_api: true       # KAPT_SERVICE_KEY 필요, 없으면 자동 skip
+    alio: true
+    g2b_crawler: false   # deprecated (엔드포인트 사망)
+  request_sleep_seconds: 1.5
+  page_size: 100
+  lookback_days: 1
+  alio:
+    keyword: ""
+    max_pages: 10
+  # K-apt API: 실제 오퍼레이션 이름은 data.go.kr의 "공동주택관리정보시스템 입찰공고 정보제공 서비스"
+  # 활용신청 승인 후 문서에서 확인 가능. 기본값이 맞지 않으면 아래에서 override.
+  kapt:
+    base_url: ""       # 빈 값이면 collectors/kapt_api.py의 DEFAULT_BASE_URL 사용
+    operation: ""      # 빈 값이면 DEFAULT_OPERATION 사용
+
+filters:
+  include_keywords: ["AI", "데이터", "클라우드"]
+  exclude_keywords: ["청소", "경비"]
+  min_amount_eok: 0
+  max_amount_eok: 9999
+  # 빈 리스트([])로 두면 모든 업종 통과. 특정 업종만 원하면 원하는 값만 나열.
+  bid_types: ["물품", "용역", "공사", "K-apt", "공공기관"]
+  case_sensitive: false
+
+notifier:
+  channels: ["email"]
+  email:
+    smtp_host: "smtp.gmail.com"
+    smtp_port: 587
+    from_addr: "bot@example.com"
+    to_addrs: ["me@example.com"]
+    use_tls: true
+  slack:
+    webhook_url_env: "SLACK_WEBHOOK_URL"
+
+schedule:
+  collect_cron: "0 8 * * *"
+  notify_cron: "30 8 * * *"
+  timezone: "Asia/Seoul"
+
+logging:
+  level: "INFO"
+  file: "logs/bid_collector.log"
+  max_bytes: 10485760
+  backup_count: 5
+
+database:
+  path: "data/bids.sqlite"

@@ -1,0 +1,134 @@
+{
+  "status": "success",
+  "elementNm": null,
+  "ruleNm": null,
+  "message": null,
+  "data": {
+    "result": [
+      {
+        "rtitle": "천안분소 GHP(가스열펌프) 실외기 교체",
+        "pname": "한국산업기술시험원",
+        "bidInfoEndDt": "2026.05.12",
+        "bdate": "2026.04.23",
+        "cdNo": "B1030",
+        "seq": 3520725,
+        "rnum": 1,
+        "logo": "ci.jpg",
+        "imgPathNo": "2026040810365659"
+      },
+      {
+        "rtitle": "비지상망 적용 융합제품의 통신적합성 검증 시스템",
+        "pname": "한국산업기술시험원",
+        "bidInfoEndDt": "2026.05.14",
+        "bdate": "2026.04.23",
+        "cdNo": "B1030",
+        "seq": 3520724,
+        "rnum": 2,
+        "logo": "ci.jpg",
+        "imgPathNo": "2026040810365659"
+      },
+      {
+        "rtitle": "남극과학기지 저궤도 위성통신망 운영 및 관리 용역",
+        "pname": "극지연구소",
+        "bidInfoEndDt": "2026.05.06",
+        "bdate": "2026.04.23",
+        "cdNo": "B1030",
+        "seq": 3520723,
+        "rnum": 3,
+        "logo": "kopri ci.jpg",
+        "imgPathNo": "2025052910203801"
+      },
+      {
+        "rtitle": "2026년 한국예술인복지재단 서면계약 체결지원 홍보 강화 등을 위한 SNS 운영 및 홍보물 제작 용역",
+        "pname": "한국예술인복지재단",
+        "bidInfoEndDt": "2026.05.04",
+        "bdate": "2026.04.23",
+        "cdNo": "B1030",
+        "seq": 3520722,
+        "rnum": 4,
+        "logo": "kawf_ci.jpg",
+        "imgPathNo": "2026032310349444"
+      },
+      {
+        "rtitle": "[E012603213]명장, 엄궁S/S 154kV #2M.Tr 대체공사(전문회사)",
+        "pname": "한국전력공사",
+        "bidInfoEndDt": "2026.05.04",
+        "bdate": "2026.04.23",
+        "cdNo": "B1030",
+        "seq": 3520721,
+        "rnum": 5,
+        "logo": "ci_한국전력공사(영문병기).jpg",
+        "imgPathNo": "2026011210315386"
+      },
+      {
+        "rtitle": "IP-R&D 전략 수립을 위한 기술시장정보 DB사용권 구매(재공고)",
+        "pname": "한국특허전략개발원",
+        "bidInfoEndDt": "2026.05.04",
+        "bdate": "2026.04.23",
+        "cdNo": "B1030",
+        "seq": 3520720,
+        "rnum": 6,
+        "logo": "corporate identity.jpg",
+        "imgPathNo": "2026010510307703"
+      },
+      {
+        "rtitle": "2026년도 안전보건교육 성과평가 용역",
+        "pname": "한국산업안전보건공단",
+        "bidInfoEndDt": "2026.05.07",
+        "bdate": "2026.04.23",
+        "cdNo": "B1030",
+        "seq": 3520719,
+        "rnum": 7,
+        "logo": "안전보건공단ci.jpg",
+        "imgPathNo": "2025121810301380"
+      },
+      {
+        "rtitle": "한국벤처투자 채용 대행 용역",
+        "pname": "한국벤처투자",
+        "bidInfoEndDt": "2026.06.02",
+        "bdate": "2026.04.23",
+        "cdNo": "B1030",
+        "seq": 3520718,
+        "rnum": 8,
+        "logo": "kvic ci.jpg",
+        "imgPathNo": "2026041410384066"
+      },
+      {
+        "rtitle": "산업기술 R&D 정책 아이디어 공모전 기획 운영 용역",
+        "pname": "한국산업기술기획평가원",
+        "bidInfoEndDt": "2026.05.06",
+        "bdate": "2026.04.23",
+        "cdNo": "B1030",
+        "seq": 3520717,
+        "rnum": 9,
+        "logo": "한국산업기술기획평가원 ci.jpg",
+        "imgPathNo": "2026020510326904"
+      },
+      {
+        "rtitle": "혜택알리미 서비스 구현(3차) 위탁감리",
+        "pname": "한국지능정보사회진흥원",
+        "bidInfoEndDt": "2026.05.14",
+        "bdate": "2026.04.23",
+        "cdNo": "B1030",
+        "seq": 3520716,
+        "rnum": 10,
+        "logo": "한국지능정보사회진흥원 ci.jpg",
+        "imgPathNo": "2026040610361503"
+      }
+    ],
+    "totalCnt": 68779,
+    "todayCnt": 144,
+    "page": {
+      "prePage_is": false,
+      "currStartPage": 1,
+      "currPage": 1,
+      "currEndPage": 10,
+      "prePage": 0,
+      "nextPage": 11,
+      "totalPage": 6878,
+      "nextPage_is": true,
+      "totalCount": 68779,
+      "unitPage": 10
+    }
+  }
+}

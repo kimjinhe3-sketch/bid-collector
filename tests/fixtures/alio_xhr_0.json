@@ -1,0 +1,48 @@
+{
+  "status": "success",
+  "elementNm": null,
+  "ruleNm": null,
+  "message": null,
+  "data": [
+    {
+      "searchRank": 1,
+      "searchText": "한국전력공사"
+    },
+    {
+      "searchRank": 2,
+      "searchText": "채용"
+    },
+    {
+      "searchRank": 3,
+      "searchText": "한국수력원자력"
+    },
+    {
+      "searchRank": 4,
+      "searchText": "한국철도공사"
+    },
+    {
+      "searchRank": 5,
+      "searchText": "한국토지주택공사"
+    },
+    {
+      "searchRank": 6,
+      "searchText": "한국도로공사"
+    },
+    {
+      "searchRank": 7,
+      "searchText": "근로복지공단"
+    },
+    {
+      "searchRank": 8,
+      "searchText": "한국수자원공사"
+    },
+    {
+      "searchRank": 9,
+      "searchText": "신용보증기금"
+    },
+    {
+      "searchRank": 10,
+      "searchText": "한국가스공사"
+    }
+  ]
+}
