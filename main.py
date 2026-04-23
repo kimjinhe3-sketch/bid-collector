@@ -18,7 +18,7 @@ load_dotenv(ROOT / ".env")
 
 from utils.logger import setup_logger, get_logger
 from utils.config_loader import load_config, cron_kwargs
-from collectors import g2b_api, kapt_api, alio_crawler, g2b_crawler, d2b_api, kwater_api
+from collectors import g2b_api, kapt_api, alio_crawler, g2b_crawler, d2b_api, kwater_api, kepco_api
 from db import database
 from filters import keyword_filter
 from notifiers import email_notifier, slack_notifier
@@ -147,6 +147,26 @@ def run_collect(config: dict) -> int:
                 total_collected += len(rows)
             except Exception:
                 logger.exception("kwater_api collection crashed")
+
+    if sources.get("kepco_api"):
+        kepco_key = os.environ.get("KEPCO_API_KEY")
+        kepco_cfg = (config.get("collection", {}).get("kepco") or {})
+        if not kepco_key:
+            logger.warning("KEPCO_API_KEY missing — skipping kepco_api "
+                           "(bigdata.kepco.co.kr에서 별도 발급)")
+        else:
+            try:
+                rows = kepco_api.collect(
+                    api_key=kepco_key,
+                    base_url=kepco_cfg.get("base_url") or kepco_api.DEFAULT_BASE_URL,
+                    company_ids=kepco_cfg.get("company_ids") or None,
+                    sleep_seconds=sleep_seconds,
+                    lookback_days=lookback_days,
+                )
+                database.upsert_bids(db_path, rows)
+                total_collected += len(rows)
+            except Exception:
+                logger.exception("kepco_api collection crashed")
 
     logger.info("collection complete: %d rows total", total_collected)
     return total_collected

@@ -92,6 +92,7 @@ def test_source_labels_cover_known_sources():
         "d2b_api_dmstc", "kwater_api",
         "kwater_api_cntrwk", "kwater_api_gds",
         "kwater_api_servc", "kwater_api_dmscpt",
+        "kepco_api",
     }
     assert expected == set(dashboard.SOURCE_LABELS.keys())
 

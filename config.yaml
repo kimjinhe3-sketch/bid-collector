@@ -5,7 +5,8 @@ collection:
     alio: true
     g2b_crawler: false   # deprecated (엔드포인트 사망)
     d2b_api: true        # 국방전자조달 (G2B 서비스키 공용)
-    kwater_api: true     # 한국수자원공사 (공사/물품/용역/내자 4 오퍼레이션)
+    kwater_api: true     # 한국수자원공사 K-water (G2B 서비스키 공용, 4 오퍼레이션)
+    kepco_api: true      # 한국전력공사 KEPCO (bigdata.kepco.co.kr 전용 키 필요)
   request_sleep_seconds: 1.5
   page_size: 100
   lookback_days: 1
@@ -21,6 +22,11 @@ collection:
     # 주의: 경로는 "ebid" (소문자). 대문자는 500 에러.
     base_url: "https://apis.data.go.kr/B500001/ebid/tndr3"
     type_param: "_type"
+  kepco:
+    # 한국전력공사 KEPCO 전자입찰 (bigdata.kepco.co.kr)
+    # KEPCO_API_KEY 환경변수 필요 (data.go.kr 키와 별개)
+    base_url: "https://bigdata.kepco.co.kr/openapi/v1/electContract.do"
+    # company_ids: ["COM01", "COM02"]  # 비워두면 전체 계열사 한 번에 조회
 
 filters:
   include_keywords: ["전기", "소방", "통신", "건축", "신축", "납품", "공사", "태양광", "환경", "실내건축"]

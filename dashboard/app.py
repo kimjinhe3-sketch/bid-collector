@@ -54,6 +54,7 @@ SOURCE_LABELS = {
     "kwater_api_gds":    "K-water 물품",
     "kwater_api_servc":  "K-water 용역",
     "kwater_api_dmscpt": "K-water 내자",
+    "kepco_api":         "KEPCO",
 }
 
 
@@ -250,7 +251,8 @@ def run_collect_action(config: dict, db_path: Path) -> tuple[bool, str, list[str
     Returns (ok, summary, per_source_log) so the UI can surface warnings
     even when the overall run succeeds (e.g. one source failed).
     """
-    from collectors import g2b_api, kapt_api, alio_crawler, d2b_api, kwater_api
+    from collectors import (g2b_api, kapt_api, alio_crawler,
+                            d2b_api, kwater_api, kepco_api)
     from db import database as dbmod
 
     sleep = float(config.get("collection", {}).get("request_sleep_seconds", 1.5))
@@ -347,6 +349,27 @@ def run_collect_action(config: dict, db_path: Path) -> tuple[bool, str, list[str
                 log_lines.append(f"✅ K-water: {len(rows):,}건")
             except Exception as e:
                 msg = f"❌ K-water 오류: {type(e).__name__}: {e}"
+                errors.append(msg); log_lines.append(msg)
+
+    if sources.get("kepco_api"):
+        kepco_key = get_secret("KEPCO_API_KEY")
+        kepco_cfg = (config.get("collection", {}).get("kepco") or {})
+        if not kepco_key:
+            log_lines.append("⏩ KEPCO: KEPCO_API_KEY 없음 — skip (bigdata.kepco.co.kr에서 별도 발급)")
+        else:
+            try:
+                rows = kepco_api.collect(
+                    api_key=kepco_key,
+                    base_url=kepco_cfg.get("base_url") or kepco_api.DEFAULT_BASE_URL,
+                    company_ids=kepco_cfg.get("company_ids") or None,
+                    sleep_seconds=sleep,
+                    lookback_days=lookback,
+                )
+                dbmod.upsert_bids(db_path, rows)
+                total += len(rows)
+                log_lines.append(f"✅ KEPCO: {len(rows):,}건")
+            except Exception as e:
+                msg = f"❌ KEPCO 오류: {type(e).__name__}: {e}"
                 errors.append(msg); log_lines.append(msg)
 
     summary = f"수집 완료: {total:,}건"
