@@ -41,6 +41,23 @@ from utils.secrets import get_secret
 
 EOK = 100_000_000
 
+# 메트릭 카드용 상위 그룹: 3개 버킷으로 집계
+SOURCE_GROUPS = {
+    "나라장터": [
+        "g2b_api_thng", "g2b_api_servc", "g2b_api_cnstwk",
+        "g2b_api_frgcpt", "g2b_api_etc",
+    ],
+    "누리장터": [
+        "prvt_api_servc", "prvt_api_thng",
+        "prvt_api_cnstwk", "prvt_api_etc",
+    ],
+    "기타": [
+        "d2b_api_dmstc", "kepco_api", "alio", "kapt_api",
+        "kwater_api", "kwater_api_cntrwk", "kwater_api_gds",
+        "kwater_api_servc", "kwater_api_dmscpt", "g2b_crawl",
+    ],
+}
+
 SOURCE_LABELS = {
     "g2b_api_thng": "나라장터 물품",
     "g2b_api_servc": "나라장터 용역",
@@ -201,7 +218,7 @@ def _fix_alio_url(url, title) -> str | None:
 
 
 def _fmt_amount(price) -> str:
-    """None/0/NaN → '링크 참조', 1억 이상 → 'N.NN 억', 그 미만 → 'N,NNN원'."""
+    """None/0/NaN → '링크 참조', 그 외 → 'N.NN 억원' (항상 억원 단위)."""
     import math
     try:
         p = float(price) if price is not None else None
@@ -209,9 +226,7 @@ def _fmt_amount(price) -> str:
         p = None
     if p is None or (isinstance(p, float) and math.isnan(p)) or p <= 0:
         return "링크 참조"
-    if p >= EOK:
-        return f"{p / EOK:.2f} 억"
-    return f"{int(p):,}원"
+    return f"{p / EOK:.2f} 억원"
 
 
 def rows_to_dataframe(rows: list[dict]) -> pd.DataFrame:
@@ -474,11 +489,9 @@ def main() -> None:
             st.rerun()
         st.stop()
 
-    # ── Session state defaults (일괄 초기화) ──
-    # Two-layer pattern:
-    #   f_*_input  → 위젯 key (사용자가 편집 중인 값, rerun에도 보존)
-    #   applied_*  → 실제 필터링에 쓰이는 값 ("필터 적용하기" 눌러야 갱신)
-    # 이렇게 하면 메트릭 카드 클릭으로 rerun되어도 입력 중인 값이 날아가지 않음.
+    # ── Session state defaults ──
+    # Live-reactive: 모든 필터 입력은 f_*_input key로 session_state에 자동 바인드.
+    # 입력 변경 → 자동 rerun → DB 재조회. 별도 "applied" 복사 불필요.
     today = date.today()
     cfg_filters = config.get("filters", {})
     cfg_include = cfg_filters.get("include_keywords", [])
@@ -490,108 +503,79 @@ def main() -> None:
             bid_type_options.append(t)
     default_types = [t for t in cfg_types if t in bid_type_options]
 
-    _init_since = today - timedelta(days=7)
     _init_min_eok = int(cfg_filters.get("min_amount_eok") or 0)
     _init_max_eok = int(cfg_filters.get("max_amount_eok") or 9999)
-    _init_include_text = ", ".join(cfg_include)
-    _init_exclude_text = ", ".join(cfg_exclude)
     _defaults = {
-        # 입력 위젯 (rerun에 보존되는 편집 중인 값)
-        "f_since_input": _init_since,
         "f_bid_types_input": default_types,
         "f_keyword_input": "",
         "f_org_query_input": "",
-        "f_include_text_input": _init_include_text,
-        "f_exclude_text_input": _init_exclude_text,
+        "f_include_text_input": ", ".join(cfg_include),
+        "f_exclude_text_input": ", ".join(cfg_exclude),
         "f_amount_slider_input": (_init_min_eok, _init_max_eok),
         "f_row_limit_input": 20_000,
-        # 적용 값 (실제 필터링)
-        "applied_since": _init_since,
-        "applied_bid_types": default_types,
-        "applied_keyword": "",
-        "applied_org_query": "",
-        "applied_include": cfg_include[:],
-        "applied_exclude": cfg_exclude[:],
-        "applied_min_eok": _init_min_eok,
-        "applied_max_eok": _init_max_eok,
-        "applied_row_limit": 20_000,
-        # 소스 필터 (메트릭 카드 클릭)
         "source_filter": [],
     }
     for _k, _v in _defaults.items():
         st.session_state.setdefault(_k, _v)
 
-    # ── Section 1: 클릭 가능한 metric 카드 (소스 필터 토글) ──
-    st.markdown("### 📊 오늘의 수집 현황 &nbsp;<small style='color:#6b7280'>— 카드 클릭 = 해당 소스 필터 · '전체'로 해제</small>",
+    # ── Section 1: 4개 그룹 메트릭 카드 (전체/나라장터/누리장터/기타) ──
+    st.markdown("### 📊 오늘의 수집 현황 &nbsp;<small style='color:#6b7280'>— 카드 클릭으로 그룹 필터</small>",
                 unsafe_allow_html=True)
     today_counts = load_counts(str(db_path), today.isoformat())
     total_counts = load_counts(str(db_path), None)
     current_sources = st.session_state["source_filter"]
 
-    if today_counts:
-        items = sorted(today_counts.items())
-        total_today = sum(c for _, c in items)
-        all_items = [("__ALL__", total_today)] + items
-        n = max(1, min(len(all_items), 4))
-        cols = st.columns(n)
-        for i, (src, count) in enumerate(all_items):
-            if src == "__ALL__":
-                label = "🌐 전체"
-                active = len(current_sources) == 0
-            else:
-                label = SOURCE_LABELS.get(src, src)
-                active = src in current_sources
-            with cols[i % n]:
-                btn_label = f"**{label}**  \n{count:,}건" + (" ✓" if active else "")
-                if st.button(btn_label, key=f"mcard_{src}",
+    # 현재 활성 그룹 판정 (source_filter 가 특정 그룹 전체와 일치하면 그 그룹)
+    current_set = set(current_sources)
+    active_group = None
+    if current_set:
+        for _g, _srcs in SOURCE_GROUPS.items():
+            if current_set == set(_srcs):
+                active_group = _g
+                break
+
+    if today_counts or total_counts:
+        total_today = sum(today_counts.values())
+        group_counts = {g: sum(today_counts.get(s, 0) for s in srcs)
+                        for g, srcs in SOURCE_GROUPS.items()}
+
+        items = [
+            ("__ALL__",  "🌐 전체",      total_today,              active_group is None and not current_set),
+            ("나라장터", "🏛️ 나라장터",  group_counts["나라장터"], active_group == "나라장터"),
+            ("누리장터", "🏘️ 누리장터",  group_counts["누리장터"], active_group == "누리장터"),
+            ("기타",     "📦 기타",      group_counts["기타"],     active_group == "기타"),
+        ]
+        cols = st.columns(4)
+        for i, (key, label, count, active) in enumerate(items):
+            with cols[i]:
+                btn_label = f"**{label}** · {count:,}건" + (" ✓" if active else "")
+                if st.button(btn_label, key=f"mcard_{key}",
                              width="stretch",
                              type=("primary" if active else "secondary")):
-                    if src == "__ALL__":
+                    if key == "__ALL__" or active:
                         st.session_state["source_filter"] = []
                     else:
-                        st.session_state["source_filter"] = [] if active else [src]
+                        st.session_state["source_filter"] = SOURCE_GROUPS[key][:]
                     st.rerun()
     else:
         st.info(f"{today} 수집 기록이 없습니다. 사이드바의 '지금 수집'을 눌러보세요.")
 
+    # 하단 요약 — 그룹별 간단 수치
+    group_totals = {g: sum(total_counts.get(s, 0) for s in srcs)
+                    for g, srcs in SOURCE_GROUPS.items()}
     st.markdown(
         f"<div class='section-hint desktop-only'>DB 전체: "
         f"<b>{sum(total_counts.values()):,}건</b> — "
-        + " · ".join(f"{SOURCE_LABELS.get(k, k)} {v:,}"
-                     for k, v in sorted(total_counts.items()))
+        + " · ".join(f"{g} {v:,}" for g, v in group_totals.items())
         + "</div>",
         unsafe_allow_html=True,
     )
 
-    # ── Sidebar ────────────────────────────────────────────
+    # ── Sidebar (live-reactive 필터) ────────────────────────
     with st.sidebar:
         st.markdown("### 🎛️ 필터")
 
-        # 기관 바로가기 — 즉시 적용 (input + applied 동시 갱신)
-        st.caption("기관 바로가기")
-        quick_cols = st.columns(3)
-        for i, (lbl, q) in enumerate([
-            ("한수원", "한국수력원자력"),
-            ("방사청", "방위사업청"),
-            ("한전", "한국전력"),
-        ]):
-            if quick_cols[i].button(lbl, key=f"qb_{lbl}", width="stretch"):
-                st.session_state["f_org_query_input"] = q
-                st.session_state["applied_org_query"] = q
-                invalidate_all_caches()
-                st.rerun()
-        if st.session_state["applied_org_query"]:
-            if st.button("🔄 기관 필터 초기화", width="stretch", key="org_reset"):
-                st.session_state["f_org_query_input"] = ""
-                st.session_state["applied_org_query"] = ""
-                invalidate_all_caches()
-                st.rerun()
-
-        st.markdown("---")
-
-        # 필터 입력 — form 없이 session_state 자동 바인드 (rerun에 보존)
-        # 실제 필터링은 "필터 적용하기" 버튼 클릭 시에만 applied_* 갱신
-        st.date_input("조회 시작일", key="f_since_input")
+        # 필터 위젯: 모두 key=로 session_state 자동 바인드 → 입력 변경 시 즉시 반영
         st.multiselect("업종", bid_type_options, key="f_bid_types_input")
         st.text_input("공고명 검색 (제목에만 적용)",
                       key="f_keyword_input", placeholder="예: 데이터")
@@ -615,26 +599,19 @@ def main() -> None:
         st.number_input("최대 조회 건수", min_value=100, max_value=50_000,
                         step=1000, key="f_row_limit_input")
 
-        if st.button("🔍 필터 적용하기", width="stretch", type="primary",
-                     key="apply_filters"):
-            st.session_state["applied_since"] = st.session_state["f_since_input"]
-            st.session_state["applied_bid_types"] = st.session_state["f_bid_types_input"]
-            st.session_state["applied_keyword"] = st.session_state["f_keyword_input"]
-            st.session_state["applied_org_query"] = st.session_state["f_org_query_input"]
-            st.session_state["applied_include"] = preview_inc
-            st.session_state["applied_exclude"] = preview_exc
-            lo, hi = st.session_state["f_amount_slider_input"]
-            st.session_state["applied_min_eok"] = lo
-            st.session_state["applied_max_eok"] = hi
-            st.session_state["applied_row_limit"] = int(st.session_state["f_row_limit_input"])
+        st.markdown("---")
+        st.markdown("### ⚙️ 작업")
+
+        # 조회하기 (위) — 캐시 비우고 재조회 (현재 필터 즉시 재평가)
+        if st.button("🔍 조회하기", width="stretch", type="primary",
+                     key="refetch_btn"):
             invalidate_all_caches()
             st.rerun()
 
-        st.markdown("---")
-        st.markdown("### ⚙️ 작업")
-        if st.button("🚀 지금 수집", width="stretch", type="primary"):
+        # 수집하기 (아래) — 외부 API 호출
+        if st.button("🚀 지금 수집", width="stretch", type="secondary",
+                     key="collect_btn"):
             with st.status("공고 수집 중… 약 1~2분 소요됩니다.", expanded=True) as status:
-                # 실시간 진행 표시 콜백
                 def _stream(msg: str):
                     st.write(msg)
                 ok, summary, _logs = run_collect_action(config, db_path,
@@ -644,28 +621,26 @@ def main() -> None:
             if not ok:
                 st.error("일부 소스 수집 실패. 위 로그를 확인하세요.")
             st.rerun()
+
         if st.button("📧 알림 미리보기 (dry-run)", width="stretch"):
             count, msg = run_notify_action(config, db_path, dry_run=True)
             st.success(msg) if count else st.info(msg)
-        if st.button("🔄 캐시 새로고침", width="stretch"):
-            invalidate_all_caches()
-            st.rerun()
 
         st.caption(f"DB: `{db_path.name}` · 최종 업데이트 {last_update}")
 
-    # ── Section 2: 필터 적용된 목록 (applied_* 값 기반) ──
+    # ── Section 2: 필터 적용된 목록 (live-reactive) ──
     st.markdown("### 📋 공고 목록")
 
-    since_v = st.session_state["applied_since"]
-    since_str = since_v.isoformat() if since_v else None
-    bid_types_v = st.session_state["applied_bid_types"]
-    keyword_v = st.session_state["applied_keyword"]
-    org_v = st.session_state["applied_org_query"]
-    applied_include = st.session_state["applied_include"]
-    applied_exclude = st.session_state["applied_exclude"]
-    min_eok = st.session_state["applied_min_eok"]
-    max_eok = st.session_state["applied_max_eok"]
-    row_limit = int(st.session_state["applied_row_limit"])
+    # 날짜 필터 제거 — DB 전체 조회 (수집 시점에 DB가 갱신됨)
+    since_str = None
+    bid_types_v = st.session_state["f_bid_types_input"]
+    keyword_v = st.session_state["f_keyword_input"]
+    org_v = st.session_state["f_org_query_input"]
+    applied_include = [k.strip() for k in st.session_state["f_include_text_input"].split(",") if k.strip()]
+    applied_exclude = [k.strip() for k in st.session_state["f_exclude_text_input"].split(",") if k.strip()]
+    lo_hi = st.session_state["f_amount_slider_input"]
+    min_eok, max_eok = lo_hi[0], lo_hi[1]
+    row_limit = int(st.session_state["f_row_limit_input"])
 
     rows = load_rows(
         str(db_path), since_str, tuple(bid_types_v), keyword_v,

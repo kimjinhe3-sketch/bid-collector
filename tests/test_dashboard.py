@@ -37,8 +37,9 @@ def test_rows_to_dataframe_formats_amount_column():
     ]
     df = dashboard.rows_to_dataframe(rows)
     vals = list(df["금액"])
-    assert vals[0] == "8.50 억"
-    assert vals[1] == "24,150,000원"
+    # 모두 억원 2자리로 통일
+    assert vals[0] == "8.50 억원"
+    assert vals[1] == "0.24 억원"
     assert vals[2] == "링크 참조"
     assert vals[3] == "링크 참조"
 
