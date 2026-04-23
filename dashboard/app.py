@@ -217,6 +217,30 @@ def _fix_alio_url(url, title) -> str | None:
     return url
 
 
+def _parse_open_date(s):
+    """open_date 문자열을 date로 파싱. 소스별 포맷 다양:
+      G2B/누리: '2026-04-22 10:00', '2026-04-22 10:00:00'
+      ALIO:     '2026.04.23'
+      KEPCO:    '2026-04-08 10:00:00' / 'noticeDate' '20260401'
+    """
+    if not isinstance(s, str) or not s.strip():
+        return None
+    s = s.strip()
+    # Try common formats
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M",
+                "%Y-%m-%d", "%Y.%m.%d", "%Y/%m/%d", "%Y%m%d"):
+        try:
+            return datetime.strptime(s[:len(datetime.now().strftime(fmt))], fmt).date()
+        except (ValueError, TypeError):
+            continue
+    # Fallback: first 10 chars as YYYY-MM-DD or YYYY.MM.DD
+    head = s[:10].replace(".", "-").replace("/", "-")
+    try:
+        return datetime.strptime(head, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
 def _to_eok(price):
     """정수/실수 가격 → 억 단위 float, None/0/NaN → None (정렬 시 최하단으로)."""
     import math
@@ -512,8 +536,8 @@ def main() -> None:
         "f_include_text_input": ", ".join(cfg_include),
         "f_exclude_text_input": ", ".join(cfg_exclude),
         "f_amount_slider_input": (_init_min_eok, _init_max_eok),
-        "f_row_limit_input": 20_000,
-        "f_sort_order": "최근 등록순",
+        # 공고일 범위 — 기본: 최근 30일
+        "f_date_range_input": (today - timedelta(days=30), today),
     }
     _misc_defaults = {
         # 그룹별 체크박스 (기본: 전부 해제 = 전체 표시)
@@ -602,8 +626,6 @@ def main() -> None:
                     unsafe_allow_html=True)
 
         st.slider("금액 범위 (억원)", 0, 9999, key="f_amount_slider_input", step=1)
-        st.number_input("최대 조회 건수", min_value=100, max_value=50_000,
-                        step=1000, key="f_row_limit_input")
 
         # 필터 기본값 복원 — on_click 콜백 (widget key에 직접 할당 불가)
         def _reset_filters_cb():
@@ -618,7 +640,11 @@ def main() -> None:
         st.markdown("---")
         st.markdown("### ⚙️ 작업")
 
-        # 조회하기 (위) — 캐시 비우고 재조회 (현재 필터 즉시 재평가)
+        # 공고일 범위 (조회하기 바로 위)
+        st.date_input("공고일 범위", key="f_date_range_input",
+                      help="선택한 공고 발행일 범위 안의 공고만 표시")
+
+        # 조회하기 — 캐시 비우고 재조회 (현재 필터 즉시 재평가)
         if st.button("🔍 조회하기", width="stretch", type="primary",
                      key="refetch_btn"):
             invalidate_all_caches()
@@ -647,7 +673,7 @@ def main() -> None:
     # ── Section 2: 필터 적용된 목록 (live-reactive) ──
     st.markdown("### 📋 공고 목록")
 
-    # 날짜 필터 제거 — DB 전체 조회 (수집 시점에 DB가 갱신됨)
+    # DB 전체 조회 (공고일 필터는 Python-side에서 적용, 소스별 날짜 포맷이 달라서)
     since_str = None
     bid_types_v = st.session_state["f_bid_types_input"]
     keyword_v = st.session_state["f_keyword_input"]
@@ -656,13 +682,33 @@ def main() -> None:
     applied_exclude = [k.strip() for k in st.session_state["f_exclude_text_input"].split(",") if k.strip()]
     lo_hi = st.session_state["f_amount_slider_input"]
     min_eok, max_eok = lo_hi[0], lo_hi[1]
-    row_limit = int(st.session_state["f_row_limit_input"])
+    row_limit = 1_000_000  # 제한 없음 (사용자 요청)
+
+    # 공고일 범위 파싱 (st.date_input range는 tuple/list 또는 single date)
+    _date_val = st.session_state.get("f_date_range_input")
+    d_start = d_end = None
+    if isinstance(_date_val, (tuple, list)):
+        if len(_date_val) >= 1: d_start = _date_val[0]
+        if len(_date_val) >= 2: d_end = _date_val[1]
+    elif isinstance(_date_val, date):
+        d_start = _date_val
 
     rows = load_rows(
         str(db_path), since_str, tuple(bid_types_v), keyword_v,
         row_limit, org_name=org_v,
         sources=tuple(current_sources) if current_sources else (),
     )
+
+    # 공고일 범위 필터 (Python-side) — open_date 포맷이 소스마다 달라서
+    if d_start or d_end:
+        def _in_date_range(r: dict) -> bool:
+            d = _parse_open_date(r.get("open_date"))
+            if d is None:
+                return True  # 파싱 실패한 공고는 보수적으로 포함
+            if d_start and d < d_start: return False
+            if d_end and d > d_end: return False
+            return True
+        rows = [r for r in rows if _in_date_range(r)]
 
     filter_cfg = {
         "include_keywords": applied_include,

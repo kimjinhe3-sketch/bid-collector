@@ -30,8 +30,10 @@ collection:
     # company_ids: ["COM01", "COM02"]  # 비워두면 전체 계열사 한 번에 조회
 
 filters:
-  include_keywords: ["전기", "소방", "통신", "건축", "신축", "납품", "공사", "태양광", "환경", "실내건축"]
-  exclude_keywords: ["청소", "경비"]
+  include_keywords:
+    ["정보통신", "통신", "전기", "소방", "건축", "기계", "냉방", "공조",
+     "조경", "실내건축", "전원", "공사", "납품", "태양광", "환경"]
+  exclude_keywords: ["청소"]
   min_amount_eok: 0
   max_amount_eok: 9999
   # 빈 리스트([])로 두면 모든 업종 통과. 특정 업종만 원하면 원하는 값만 나열.
