@@ -314,6 +314,14 @@ def main() -> None:
     config = load_config(ROOT / "config.yaml")
     db_path = ROOT / (config.get("database", {}).get("path") or "data/bids.sqlite")
 
+    # Run startup migrations (idempotent).
+    if db_path.exists():
+        try:
+            database.init_db(db_path)
+            invalidate_all_caches()
+        except Exception:
+            pass
+
     # ── Secret availability check (warn once per session) ──
     if not get_secret("G2B_SERVICE_KEY"):
         st.warning(

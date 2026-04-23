@@ -64,6 +64,59 @@ def test_upsert_skips_rows_missing_required_fields(tmp_path):
     assert skipped == 2
 
 
+def test_migrate_stale_alio_urls_rewrites_bidview_to_search(tmp_path):
+    import sqlite3
+    db = tmp_path / "t.sqlite"
+    database.init_db(db)
+    # Insert an ALIO row with legacy bidView.do URL
+    bad_url = "https://www.alio.go.kr/occasional/bidView.do?seq=3520723"
+    database.upsert_bids(db, [{
+        "source": "alio",
+        "bid_no": "alio-3520723",
+        "title": "AI 기반 데이터 플랫폼 구축",
+        "org_name": "테스트기관",
+        "contract_method": None,
+        "estimated_price": None,
+        "open_date": "2026-04-22",
+        "close_date": "2026-05-01",
+        "bid_type": "공공기관",
+        "detail_url": bad_url,
+    }])
+    # init_db again should trigger migration
+    database.init_db(db)
+    with sqlite3.connect(db) as conn:
+        row = conn.execute(
+            "SELECT detail_url FROM bid_announcements WHERE bid_no='alio-3520723'"
+        ).fetchone()
+    new_url = row[0]
+    assert "bidView.do" not in new_url
+    assert "bidList.do" in new_url
+    assert "type=title" in new_url
+    assert "word=" in new_url
+
+
+def test_migrate_stale_alio_urls_noop_when_already_good(tmp_path):
+    import sqlite3
+    db = tmp_path / "t.sqlite"
+    database.init_db(db)
+    good_url = "https://www.alio.go.kr/occasional/bidList.do?type=title&word=ok"
+    database.upsert_bids(db, [{
+        "source": "alio",
+        "bid_no": "alio-1",
+        "title": "ok",
+        "org_name": "org",
+        "contract_method": None, "estimated_price": None,
+        "open_date": "2026-04-22", "close_date": "2026-05-01",
+        "bid_type": "공공기관", "detail_url": good_url,
+    }])
+    database.init_db(db)
+    with sqlite3.connect(db) as conn:
+        row = conn.execute(
+            "SELECT detail_url FROM bid_announcements WHERE bid_no='alio-1'"
+        ).fetchone()
+    assert row[0] == good_url
+
+
 def test_mark_notified_and_count(tmp_path):
     db = tmp_path / "t.sqlite"
     database.init_db(db)

@@ -46,6 +46,34 @@ def init_db(db_path: str | Path) -> None:
     schema = SCHEMA_PATH.read_text(encoding="utf-8")
     with connect(db_path) as conn:
         conn.executescript(schema)
+    _migrate_stale_alio_urls(db_path)
+
+
+def _migrate_stale_alio_urls(db_path: str | Path) -> None:
+    """Older ALIO rows were stored with a detail_url of
+    ``.../occasional/bidView.do?seq=X`` which returns 404 → JS-redirects to
+    the ALIO homepage. Rewrite those to the current search-URL format so old
+    data still works after we push the fix.
+    """
+    import urllib.parse
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT id, title FROM bid_announcements "
+            "WHERE source = 'alio' AND detail_url LIKE '%bidView.do%'"
+        ).fetchall()
+        if not rows:
+            return
+        for r in rows:
+            keyword = (r["title"] or "")[:30]
+            new_url = (
+                "https://www.alio.go.kr/occasional/bidList.do?"
+                f"type=title&word={urllib.parse.quote(keyword)}"
+            )
+            conn.execute(
+                "UPDATE bid_announcements SET detail_url = ? WHERE id = ?",
+                (new_url, r["id"]),
+            )
+        logger.info("migrated %d stale ALIO detail_urls", len(rows))
 
 
 def upsert_bids(db_path: str | Path, rows: Iterable[dict]) -> tuple[int, int]:
