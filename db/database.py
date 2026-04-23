@@ -148,6 +148,7 @@ def fetch_for_dashboard(
     since_date: str | None = None,
     bid_types: list[str] | None = None,
     keyword: str | None = None,
+    org_name: str | None = None,
     limit: int = 1000,
 ) -> list[dict]:
     where = []
@@ -162,6 +163,9 @@ def fetch_for_dashboard(
     if keyword:
         where.append("title LIKE ?")
         params.append(f"%{keyword}%")
+    if org_name:
+        where.append("org_name LIKE ?")
+        params.append(f"%{org_name}%")
     where_clause = f"WHERE {' AND '.join(where)}" if where else ""
     sql = f"SELECT * FROM bid_announcements {where_clause} ORDER BY created_at DESC LIMIT ?"
     params.append(limit)

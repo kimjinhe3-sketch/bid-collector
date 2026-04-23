@@ -48,7 +48,7 @@ SOURCE_LABELS = {
     "kapt_api": "K-apt",
     "alio": "ALIO",
     "g2b_crawl": "나라장터 크롤",
-    "d2b_api_dmstc": "국방전자조달",
+    "d2b_api_dmstc": "방위사업청",
     "kwater_api": "K-water",
     "kwater_api_cntrwk": "K-water 공사",
     "kwater_api_gds":    "K-water 물품",
@@ -138,12 +138,13 @@ def load_counts(db_path: str, since_date: str | None):
 
 @st.cache_data(ttl=30)
 def load_rows(db_path: str, since_date: str | None, bid_types: tuple[str, ...],
-              keyword: str | None, limit: int):
+              keyword: str | None, limit: int, org_name: str | None = None):
     return database.fetch_for_dashboard(
         db_path,
         since_date=since_date,
         bid_types=list(bid_types) if bid_types else None,
         keyword=keyword or None,
+        org_name=org_name or None,
         limit=limit,
     )
 
@@ -477,6 +478,28 @@ def main() -> None:
         bid_types = st.multiselect("업종", bid_type_options, default=default_types)
 
         keyword = st.text_input("제목 검색", placeholder="예: 데이터")
+        # 기관명 검색 + 자주 쓰는 기관 바로가기
+        org_default = st.session_state.get("org_query", "")
+        org_query = st.text_input("기관명 검색",
+                                   value=org_default,
+                                   key="org_query_input",
+                                   placeholder="예: 한수원, 방위사업청, 한전")
+        st.caption("바로가기 ↓")
+        quick_cols = st.columns(3)
+        for i, (label, query) in enumerate([
+            ("한수원", "한국수력원자력"),
+            ("방사청", "방위사업청"),
+            ("한전", "한국전력"),
+        ]):
+            if quick_cols[i].button(label, key=f"qb_{label}",
+                                    width="stretch"):
+                st.session_state["org_query"] = query
+                st.rerun()
+        # 리셋
+        if st.session_state.get("org_query") and st.button(
+                "🔄 기관 필터 초기화", width="stretch"):
+            st.session_state["org_query"] = ""
+            st.rerun()
 
         st.markdown("---")
         st.markdown("**포함 키워드** (제목에 하나라도 있으면 통과)")
@@ -562,7 +585,9 @@ def main() -> None:
 
     # ── Section 2: filtered list ───────────────────────────
     st.markdown("### 📋 키워드 히트 목록")
-    rows = load_rows(str(db_path), since_str, tuple(bid_types), keyword, 20_000)
+    effective_org = st.session_state.get("org_query") or org_query
+    rows = load_rows(str(db_path), since_str, tuple(bid_types), keyword,
+                     20_000, org_name=effective_org)
 
     # Apply keyword filter (live-editable) on top of sidebar bid_types
     if use_config_filter:
@@ -620,6 +645,8 @@ def main() -> None:
             hint.append("사이드바 업종 선택을 바꿔보세요")
         if keyword:
             hint.append(f"제목 검색 '{keyword}' 제외해보세요")
+        if effective_org:
+            hint.append(f"기관명 검색 '{effective_org}' 제외해보세요")
         st.markdown(
             f"""<div class='empty-state'>
                조건에 해당하는 공고가 없습니다.<br>

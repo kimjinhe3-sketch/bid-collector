@@ -117,6 +117,30 @@ def test_migrate_stale_alio_urls_noop_when_already_good(tmp_path):
     assert row[0] == good_url
 
 
+def test_fetch_for_dashboard_filters_by_org_name(tmp_path):
+    db = tmp_path / "t.sqlite"
+    database.init_db(db)
+    database.upsert_bids(db, [
+        _row(1, title="한수원 건", source="alio"),
+        _row(2, title="한전 건", source="alio"),
+        _row(3, title="일반", source="alio"),
+    ])
+    # Manually set org_name
+    import sqlite3
+    with sqlite3.connect(db) as conn:
+        conn.execute("UPDATE bid_announcements SET org_name='한국수력원자력(주)' WHERE bid_no='R26BK00000002'")
+        conn.execute("UPDATE bid_announcements SET org_name='한국전력공사' WHERE bid_no='R26BK00000003'")
+        conn.commit()
+
+    out = database.fetch_for_dashboard(db, org_name="한국수력원자력")
+    assert len(out) == 1
+    assert out[0]["org_name"] == "한국수력원자력(주)"
+    out = database.fetch_for_dashboard(db, org_name="한전")
+    assert len(out) == 0  # '한국전력공사' doesn't contain '한전' substring
+    out = database.fetch_for_dashboard(db, org_name="한국전력")
+    assert len(out) == 1
+
+
 def test_mark_notified_and_count(tmp_path):
     db = tmp_path / "t.sqlite"
     database.init_db(db)
