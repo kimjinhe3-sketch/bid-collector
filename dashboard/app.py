@@ -165,6 +165,21 @@ def invalidate_all_caches():
 # Helpers
 # ────────────────────────────────────────────────────────────────
 
+def _fix_alio_url(url: str | None, title: str | None) -> str | None:
+    """ALIO bidView.do URLs are 404 (legacy). Rewrite to the search-URL form
+    at READ time so this works even if the DB migration didn't run."""
+    if not url:
+        return url
+    if "alio.go.kr" in url and "bidView.do" in url:
+        import urllib.parse
+        kw = (title or "")[:30]
+        return (
+            "https://www.alio.go.kr/occasional/bidList.do"
+            f"?type=title&word={urllib.parse.quote(kw)}"
+        )
+    return url
+
+
 def rows_to_dataframe(rows: list[dict]) -> pd.DataFrame:
     cols = ["bid_no", "title", "org_name", "금액(억)", "close_date",
             "bid_type", "source_label", "detail_url"]
@@ -175,6 +190,11 @@ def rows_to_dataframe(rows: list[dict]) -> pd.DataFrame:
         df["금액(억)"] = (df["estimated_price"].fillna(0) / EOK).round(2)
     if "source" in df.columns:
         df["source_label"] = df["source"].map(SOURCE_LABELS).fillna(df["source"])
+    # Rewrite stale ALIO URLs on the fly (safety net in case DB migration didn't run).
+    if "detail_url" in df.columns and "title" in df.columns:
+        df["detail_url"] = [
+            _fix_alio_url(u, t) for u, t in zip(df["detail_url"], df["title"])
+        ]
     return df[[c for c in cols if c in df.columns]]
 
 

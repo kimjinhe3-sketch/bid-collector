@@ -45,6 +45,35 @@ def test_rows_to_dataframe_maps_source_label():
     assert "K-apt" in list(df["source_label"])
 
 
+def test_rows_to_dataframe_rewrites_stale_alio_bidview_urls():
+    rows = [
+        {
+            **_row(1, source="alio"),
+            "title": "AI 기반 데이터 플랫폼",
+            "detail_url": "https://www.alio.go.kr/occasional/bidView.do?seq=3520838",
+        },
+        {
+            **_row(2, source="alio"),
+            "title": "이미 정상",
+            "detail_url": "https://www.alio.go.kr/occasional/bidList.do?type=title&word=ok",
+        },
+        {
+            **_row(3, source="g2b_api_thng"),
+            "title": "G2B 건드리지 말 것",
+            "detail_url": "https://www.g2b.go.kr/foo?seq=1",
+        },
+    ]
+    df = dashboard.rows_to_dataframe(rows)
+    urls = list(df["detail_url"])
+    # 레거시 ALIO URL은 search URL로 변환됨
+    assert "bidView.do" not in urls[0]
+    assert "bidList.do?type=title" in urls[0]
+    # 이미 정상인 ALIO URL은 그대로
+    assert urls[1] == "https://www.alio.go.kr/occasional/bidList.do?type=title&word=ok"
+    # G2B URL은 건드리지 않음
+    assert urls[2] == "https://www.g2b.go.kr/foo?seq=1"
+
+
 def test_rows_to_dataframe_uses_raw_source_when_unknown():
     rows = [_row(1, source="unknown_source")]
     df = dashboard.rows_to_dataframe(rows)
