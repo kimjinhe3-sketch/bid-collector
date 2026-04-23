@@ -149,6 +149,7 @@ def fetch_for_dashboard(
     bid_types: list[str] | None = None,
     keyword: str | None = None,
     org_name: str | None = None,
+    sources: list[str] | None = None,
     limit: int = 1000,
 ) -> list[dict]:
     where = []
@@ -166,6 +167,10 @@ def fetch_for_dashboard(
     if org_name:
         where.append("org_name LIKE ?")
         params.append(f"%{org_name}%")
+    if sources:
+        placeholders = ",".join("?" for _ in sources)
+        where.append(f"source IN ({placeholders})")
+        params.extend(sources)
     where_clause = f"WHERE {' AND '.join(where)}" if where else ""
     sql = f"SELECT * FROM bid_announcements {where_clause} ORDER BY created_at DESC LIMIT ?"
     params.append(limit)

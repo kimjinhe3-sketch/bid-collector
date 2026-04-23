@@ -138,13 +138,16 @@ def load_counts(db_path: str, since_date: str | None):
 
 @st.cache_data(ttl=30)
 def load_rows(db_path: str, since_date: str | None, bid_types: tuple[str, ...],
-              keyword: str | None, limit: int, org_name: str | None = None):
+              keyword: str | None, limit: int,
+              org_name: str | None = None,
+              sources: tuple[str, ...] = ()):
     return database.fetch_for_dashboard(
         db_path,
         since_date=since_date,
         bid_types=list(bid_types) if bid_types else None,
         keyword=keyword or None,
         org_name=org_name or None,
+        sources=list(sources) if sources else None,
         limit=limit,
     )
 
@@ -463,116 +466,65 @@ def main() -> None:
             st.rerun()
         st.stop()
 
-    # ── Sidebar filters ────────────────────────────────────
-    with st.sidebar:
-        st.markdown("### 🎛️ 필터")
-        today = date.today()
-        since = st.date_input("조회 시작일", value=today - timedelta(days=7))
+    # ── Session state defaults (일괄 초기화) ──
+    today = date.today()
+    cfg_filters = config.get("filters", {})
+    cfg_include = cfg_filters.get("include_keywords", [])
+    cfg_exclude = cfg_filters.get("exclude_keywords", [])
+    bid_type_options = ["물품", "용역", "공사", "민간", "K-apt", "공공기관"]
+    cfg_types = cfg_filters.get("bid_types") or bid_type_options[:3]
+    for t in cfg_types:
+        if t not in bid_type_options:
+            bid_type_options.append(t)
+    default_types = [t for t in cfg_types if t in bid_type_options]
 
-        bid_type_options = ["물품", "용역", "공사", "민간", "K-apt", "공공기관"]
-        cfg_types = config.get("filters", {}).get("bid_types") or bid_type_options[:3]
-        for t in cfg_types:
-            if t not in bid_type_options:
-                bid_type_options.append(t)
-        default_types = [t for t in cfg_types if t in bid_type_options]
-        bid_types = st.multiselect("업종", bid_type_options, default=default_types)
+    _defaults = {
+        "f_since": today - timedelta(days=7),
+        "f_bid_types": default_types,
+        "f_keyword": "",
+        "f_org_query": "",
+        "f_include_text": ", ".join(cfg_include),
+        "f_exclude_text": ", ".join(cfg_exclude),
+        "f_use_kw": True,
+        "f_min_eok": int(cfg_filters.get("min_amount_eok") or 0),
+        "f_max_eok": int(cfg_filters.get("max_amount_eok") or 9999),
+        "f_row_limit": 20_000,
+        "source_filter": [],
+    }
+    for _k, _v in _defaults.items():
+        st.session_state.setdefault(_k, _v)
 
-        keyword = st.text_input("제목 검색", placeholder="예: 데이터")
-        # 기관명 검색 + 자주 쓰는 기관 바로가기
-        org_default = st.session_state.get("org_query", "")
-        org_query = st.text_input("기관명 검색",
-                                   value=org_default,
-                                   key="org_query_input",
-                                   placeholder="예: 한수원, 방위사업청, 한전")
-        st.caption("바로가기 ↓")
-        quick_cols = st.columns(3)
-        for i, (label, query) in enumerate([
-            ("한수원", "한국수력원자력"),
-            ("방사청", "방위사업청"),
-            ("한전", "한국전력"),
-        ]):
-            if quick_cols[i].button(label, key=f"qb_{label}",
-                                    width="stretch"):
-                st.session_state["org_query"] = query
-                st.rerun()
-        # 리셋
-        if st.session_state.get("org_query") and st.button(
-                "🔄 기관 필터 초기화", width="stretch"):
-            st.session_state["org_query"] = ""
-            st.rerun()
-
-        st.markdown("---")
-        st.markdown("**포함 키워드** (제목에 하나라도 있으면 통과)")
-        cfg_include = config.get("filters", {}).get("include_keywords", [])
-        include_input = st.text_area(
-            "include_keywords",
-            value=", ".join(cfg_include),
-            help="쉼표로 구분. 대시보드에서 직접 추가/삭제 가능.",
-            height=70,
-            label_visibility="collapsed",
-        )
-        live_include = [k.strip() for k in include_input.split(",") if k.strip()]
-
-        st.markdown("**제외 키워드** (제목에 하나라도 있으면 제외)")
-        cfg_exclude = config.get("filters", {}).get("exclude_keywords", [])
-        exclude_input = st.text_area(
-            "exclude_keywords",
-            value=", ".join(cfg_exclude),
-            height=60,
-            label_visibility="collapsed",
-        )
-        live_exclude = [k.strip() for k in exclude_input.split(",") if k.strip()]
-
-        st.markdown(render_kw_chips(live_include, live_exclude), unsafe_allow_html=True)
-        use_config_filter = st.checkbox("위 키워드 필터 적용", value=True)
-
-        st.markdown("---")
-        min_eok, max_eok = st.slider(
-            "금액 범위 (억원)", 0, 9999,
-            (int(config.get("filters", {}).get("min_amount_eok") or 0),
-             int(config.get("filters", {}).get("max_amount_eok") or 9999)),
-            step=1,
-        )
-
-        st.markdown("---")
-        st.markdown("### ⚙️ 작업")
-        if st.button("🚀 지금 수집", use_container_width=True, type="primary"):
-            with st.status("공고 수집 중... 약 2~3분 소요됩니다.", expanded=True) as status:
-                ok, summary, log_lines = run_collect_action(config, db_path)
-                for line in log_lines:
-                    st.write(line)
-                status.update(label=summary, state=("complete" if ok else "error"))
-            if not ok:
-                st.error("일부 소스 수집 실패. 위 로그를 확인하세요.")
-            st.rerun()
-
-        if st.button("📧 알림 미리보기 (dry-run)", use_container_width=True):
-            count, msg = run_notify_action(config, db_path, dry_run=True)
-            st.success(msg) if count else st.info(msg)
-
-        if st.button("🔄 새로고침", use_container_width=True):
-            invalidate_all_caches()
-            st.rerun()
-
-        st.caption(f"DB: `{db_path.name}` · 최종 업데이트 {last_update}")
-
-    since_str = since.isoformat() if since else None
-
-    # ── Section 1: metrics ─────────────────────────────────
-    st.markdown("### 📊 오늘의 수집 현황")
+    # ── Section 1: 클릭 가능한 metric 카드 (소스 필터 토글) ──
+    st.markdown("### 📊 오늘의 수집 현황 &nbsp;<small style='color:#6b7280'>— 카드를 클릭하면 해당 소스만 필터됨</small>",
+                unsafe_allow_html=True)
     today_counts = load_counts(str(db_path), today.isoformat())
     total_counts = load_counts(str(db_path), None)
+    current_sources = st.session_state["source_filter"]
 
     if today_counts:
         items = sorted(today_counts.items())
-        # Use up to 4 columns but wrap on mobile via CSS flex-wrap
         n = max(1, min(len(items), 4))
         cols = st.columns(n)
         for i, (src, count) in enumerate(items):
+            label = SOURCE_LABELS.get(src, src)
+            active = src in current_sources
             with cols[i % n]:
-                st.metric(SOURCE_LABELS.get(src, src), f"{count:,}건")
+                btn_label = f"**{label}**  \n{count:,}건" + (" ✓" if active else "")
+                if st.button(btn_label, key=f"mcard_{src}",
+                             width="stretch",
+                             type=("primary" if active else "secondary")):
+                    st.session_state["source_filter"] = [] if active else [src]
+                    st.rerun()
     else:
         st.info(f"{today} 수집 기록이 없습니다. 사이드바의 '지금 수집'을 눌러보세요.")
+
+    if current_sources:
+        label_str = ", ".join(SOURCE_LABELS.get(s, s) for s in current_sources)
+        colL, colR = st.columns([4, 1])
+        colL.info(f"🔍 **{label_str}** 소스만 표시 중")
+        if colR.button("↩️ 전체 보기", width="stretch", key="clear_src_filter"):
+            st.session_state["source_filter"] = []
+            st.rerun()
 
     st.markdown(
         f"<div class='section-hint desktop-only'>DB 전체: "
@@ -583,27 +535,135 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
-    # ── Section 2: filtered list ───────────────────────────
-    st.markdown("### 📋 키워드 히트 목록")
-    effective_org = st.session_state.get("org_query") or org_query
-    rows = load_rows(str(db_path), since_str, tuple(bid_types), keyword,
-                     20_000, org_name=effective_org)
+    # ── Sidebar ────────────────────────────────────────────
+    with st.sidebar:
+        st.markdown("### 🎛️ 필터")
 
-    # Apply keyword filter (live-editable) on top of sidebar bid_types
-    if use_config_filter:
+        # 기관 바로가기 (form 바깥, 즉시 적용)
+        st.caption("기관 바로가기")
+        quick_cols = st.columns(3)
+        for i, (lbl, q) in enumerate([
+            ("한수원", "한국수력원자력"),
+            ("방사청", "방위사업청"),
+            ("한전", "한국전력"),
+        ]):
+            if quick_cols[i].button(lbl, key=f"qb_{lbl}", width="stretch"):
+                st.session_state["f_org_query"] = q
+                invalidate_all_caches()
+                st.rerun()
+        if st.session_state["f_org_query"]:
+            if st.button("🔄 기관 필터 초기화", width="stretch", key="org_reset"):
+                st.session_state["f_org_query"] = ""
+                invalidate_all_caches()
+                st.rerun()
+
+        st.markdown("---")
+
+        # 필터 입력 폼 (제출 버튼으로만 적용)
+        with st.form("filter_form", border=False):
+            st.date_input("조회 시작일", value=st.session_state["f_since"],
+                          key="f_since")
+            st.multiselect("업종", bid_type_options,
+                           default=st.session_state["f_bid_types"],
+                           key="f_bid_types")
+            st.text_input("공고명 검색 (제목에만 적용)",
+                          value=st.session_state["f_keyword"],
+                          key="f_keyword",
+                          placeholder="예: 데이터")
+            st.text_input("기관명 검색",
+                          value=st.session_state["f_org_query"],
+                          key="f_org_query",
+                          placeholder="예: 한국수력원자력")
+
+            st.markdown("**공고명 포함 키워드** (제목 기준, 하나라도 있으면 통과)")
+            st.text_area("include_keywords",
+                         value=st.session_state["f_include_text"],
+                         key="f_include_text", height=70,
+                         help="쉼표로 구분, 공고 제목에만 적용",
+                         label_visibility="collapsed")
+            st.markdown("**공고명 제외 키워드** (제목 기준, 하나라도 있으면 제외)")
+            st.text_area("exclude_keywords",
+                         value=st.session_state["f_exclude_text"],
+                         key="f_exclude_text", height=60,
+                         label_visibility="collapsed")
+
+            preview_inc = [k.strip() for k in st.session_state["f_include_text"].split(",") if k.strip()]
+            preview_exc = [k.strip() for k in st.session_state["f_exclude_text"].split(",") if k.strip()]
+            st.markdown(render_kw_chips(preview_inc, preview_exc),
+                        unsafe_allow_html=True)
+            st.checkbox("위 키워드 필터 적용", value=st.session_state["f_use_kw"],
+                        key="f_use_kw")
+
+            st.slider("금액 범위 (억원)", 0, 9999,
+                      (st.session_state["f_min_eok"], st.session_state["f_max_eok"]),
+                      step=1, key="f_amount_slider")
+
+            st.number_input("최대 조회 건수", min_value=100, max_value=50_000,
+                            value=st.session_state["f_row_limit"], step=1000,
+                            key="f_row_limit")
+
+            submitted = st.form_submit_button("🔍 필터 적용하기",
+                                               width="stretch", type="primary")
+
+        if submitted:
+            lo, hi = st.session_state["f_amount_slider"]
+            st.session_state["f_min_eok"] = lo
+            st.session_state["f_max_eok"] = hi
+            invalidate_all_caches()
+            st.rerun()
+
+        st.markdown("---")
+        st.markdown("### ⚙️ 작업")
+        if st.button("🚀 지금 수집", width="stretch", type="primary"):
+            with st.status("공고 수집 중... 약 2~3분 소요됩니다.", expanded=True) as status:
+                ok, summary, log_lines = run_collect_action(config, db_path)
+                for line in log_lines:
+                    st.write(line)
+                status.update(label=summary, state=("complete" if ok else "error"))
+            if not ok:
+                st.error("일부 소스 수집 실패. 위 로그를 확인하세요.")
+            st.rerun()
+        if st.button("📧 알림 미리보기 (dry-run)", width="stretch"):
+            count, msg = run_notify_action(config, db_path, dry_run=True)
+            st.success(msg) if count else st.info(msg)
+        if st.button("🔄 캐시 새로고침", width="stretch"):
+            invalidate_all_caches()
+            st.rerun()
+
+        st.caption(f"DB: `{db_path.name}` · 최종 업데이트 {last_update}")
+
+    # ── Section 2: 필터 적용된 목록 (세션 값 기반) ──
+    st.markdown("### 📋 공고 목록")
+
+    since_v = st.session_state["f_since"]
+    since_str = since_v.isoformat() if since_v else None
+    bid_types_v = st.session_state["f_bid_types"]
+    keyword_v = st.session_state["f_keyword"]
+    org_v = st.session_state["f_org_query"]
+    live_include = [k.strip() for k in st.session_state["f_include_text"].split(",") if k.strip()]
+    live_exclude = [k.strip() for k in st.session_state["f_exclude_text"].split(",") if k.strip()]
+    use_kw = st.session_state["f_use_kw"]
+    min_eok = st.session_state["f_min_eok"]
+    max_eok = st.session_state["f_max_eok"]
+    row_limit = int(st.session_state.get("f_row_limit", 20_000))
+
+    rows = load_rows(
+        str(db_path), since_str, tuple(bid_types_v), keyword_v,
+        row_limit, org_name=org_v,
+        sources=tuple(current_sources) if current_sources else (),
+    )
+
+    if use_kw:
         filter_cfg = {
             "include_keywords": live_include,
             "exclude_keywords": live_exclude,
             "min_amount_eok": min_eok,
             "max_amount_eok": max_eok,
-            "case_sensitive": bool(config.get("filters", {}).get("case_sensitive", False)),
-            # bid_types는 사이드바에서 이미 적용되어 DB에서 필터됨
+            "case_sensitive": bool(cfg_filters.get("case_sensitive", False)),
         }
-        rows = keyword_filter.apply_filters(rows, filter_cfg)
     else:
-        rows = keyword_filter.apply_filters(rows, {
-            "min_amount_eok": min_eok, "max_amount_eok": max_eok,
-        })
+        filter_cfg = {"min_amount_eok": min_eok, "max_amount_eok": max_eok}
+    rows = keyword_filter.apply_filters(rows, filter_cfg)
 
     df = rows_to_dataframe(rows)
     st.write(f"**검색 결과: {len(df):,}건**")
@@ -626,27 +686,18 @@ def main() -> None:
                 ),
             },
         )
-        # ALIO 행의 URL 품질을 확인할 수 있는 디버그 섹션
-        alio_rows = [r for r in rows if r.get("source") == "alio"][:3]
-        if alio_rows:
-            with st.expander("🔍 ALIO 링크 진단 (문제 있을 때 펼쳐보기)", expanded=False):
-                for r in alio_rows:
-                    url = r.get("detail_url") or ""
-                    is_legacy = "bidView.do" in url
-                    is_new = "bidList.do?type=title" in url
-                    status = "❌ 레거시 URL (DB 마이그레이션 안됨)" if is_legacy else ("✅ 최신 URL" if is_new else "⚠️ 알 수 없는 형식")
-                    st.write(f"**{r.get('bid_no')}** · {status}")
-                    st.code(url, language="text")
     else:
         hint = []
-        if use_config_filter and live_include:
+        if use_kw and live_include:
             hint.append(f"포함 키워드({', '.join(live_include)})와 겹치는 제목이 없을 수 있습니다")
-        if bid_types:
-            hint.append("사이드바 업종 선택을 바꿔보세요")
-        if keyword:
-            hint.append(f"제목 검색 '{keyword}' 제외해보세요")
-        if effective_org:
-            hint.append(f"기관명 검색 '{effective_org}' 제외해보세요")
+        if bid_types_v:
+            hint.append("업종 선택을 바꿔보세요")
+        if keyword_v:
+            hint.append(f"공고명 검색 '{keyword_v}' 제외해보세요")
+        if org_v:
+            hint.append(f"기관명 검색 '{org_v}' 제외해보세요")
+        if current_sources:
+            hint.append("위 소스 필터를 해제해보세요 (↩️ 전체 보기)")
         st.markdown(
             f"""<div class='empty-state'>
                조건에 해당하는 공고가 없습니다.<br>
