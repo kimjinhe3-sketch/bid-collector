@@ -74,6 +74,15 @@ def _yesterday_range(now: datetime | None = None, lookback_days: int = 1) -> tup
     return start.strftime(fmt), end.strftime(fmt)
 
 
+def _build_search_url(bid_no: str, title: str) -> str:
+    """누리장터 공고는 nuri.g2b.go.kr / www.g2b.go.kr 공식 상세 경로가 모두
+    SSO 로그인 벽에 막혀있음. 구글 검색 URL을 fallback 으로 생성.
+    """
+    import urllib.parse
+    query = f"{bid_no} {title[:20]}".strip()
+    return f"https://www.google.com/search?q={urllib.parse.quote(query)}"
+
+
 def _normalize(item: dict, source: str, bid_type: str) -> dict | None:
     bid_no = item.get("bidNtceNo")
     # Prvt 스키마는 ntceNm; G2B는 bidNtceNm. 둘 다 수용.
@@ -82,19 +91,20 @@ def _normalize(item: dict, source: str, bid_type: str) -> dict | None:
         return None
     ord_no = item.get("bidNtceOrd") or ""
     bid_no_full = f"{bid_no}-{ord_no}" if ord_no else str(bid_no)
+    title_str = str(title).strip()
     # 민간 공고는 presmptPrce가 없고 asignBdgtAmt 또는 refAmt 사용
     price = _safe_int(_pick(item, ("refAmt", "asignBdgtAmt", "presmptPrce")))
     return {
         "source": source,
         "bid_no": bid_no_full,
-        "title": str(title).strip(),
+        "title": title_str,
         "org_name": _pick(item, ("ntceInsttNm", "dminsttNm")),
         "contract_method": item.get("cntrctMthdNm"),
         "estimated_price": price,
         "open_date": _pick(item, ("bidBeginDt", "nticeDt", "bidNtceDt")),
         "close_date": item.get("bidClseDt"),
         "bid_type": bid_type,
-        "detail_url": None,   # 누리장터 상세 URL은 SSO 로그인 필수
+        "detail_url": _build_search_url(str(bid_no), title_str),
     }
 
 

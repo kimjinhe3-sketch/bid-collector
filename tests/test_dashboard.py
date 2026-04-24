@@ -84,6 +84,36 @@ def test_rows_to_dataframe_upgrades_kepco_http_to_https():
     assert urls[1] == "https://srm.kepco.net/printDownloadAttachment.do?id=xyz"
 
 
+def test_rows_to_dataframe_generates_prvt_search_url_when_missing():
+    """누리장터 (prvt_api_*) rows have no detail_url by default.
+    rows_to_dataframe should fall back to a Google search URL so the link
+    column is always clickable."""
+    rows = [
+        {**_row(1, source="prvt_api_servc"), "title": "ABC 교회 태양광 설치",
+         "bid_no": "R26BK01482245-000", "detail_url": None},
+        {**_row(2, source="prvt_api_thng"), "title": "XX 아파트 승강기",
+         "bid_no": "R26BK01500000", "detail_url": ""},
+        # Existing non-empty url should NOT be replaced
+        {**_row(3, source="prvt_api_cnstwk"), "title": "YY 공사",
+         "bid_no": "R26X", "detail_url": "https://example.com/real"},
+        # Non-prvt row with empty url stays empty
+        {**_row(4, source="g2b_api_thng"), "detail_url": None},
+    ]
+    df = dashboard.rows_to_dataframe(rows)
+    urls = list(df["detail_url"])
+    assert urls[0].startswith("https://www.google.com/search?q=")
+    assert "R26BK01482245" in urls[0]
+    assert urls[1].startswith("https://www.google.com/search?q=")
+    assert "R26BK01500000" in urls[1]
+    assert urls[2] == "https://example.com/real"
+    # g2b row with None stays None/NaN/empty — no Google fallback
+    import math
+    u3 = urls[3]
+    is_empty = (u3 is None or u3 == ""
+                or (isinstance(u3, float) and math.isnan(u3)))
+    assert is_empty or (isinstance(u3, str) and "google.com" not in u3)
+
+
 def test_rows_to_dataframe_rewrites_stale_alio_bidview_urls():
     rows = [
         {

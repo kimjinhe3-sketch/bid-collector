@@ -452,6 +452,28 @@ def _fix_alio_url(url, title) -> str | None:
     return url
 
 
+def _fix_prvt_url(url, source, bid_no, title) -> str | None:
+    """누리장터(prvt_api_*) API는 detail URL을 제공하지 않음. 또한 nuri.g2b.go.kr
+    및 www.g2b.go.kr 의 모든 상세 경로는 SSO 로그인 벽에 막힘 (="시스템 접근 안내").
+
+    → 구글 검색 URL을 생성해 공고번호 + 제목 앞부분으로 검색. Google 색인에
+    nuri.g2b.go.kr 공개 캐시 및 관련 입찰정보 사이트들이 나와 사실상 바로
+    열람 가능. 기존 url 값이 있으면 그대로 사용.
+    """
+    if isinstance(url, str) and url.strip():
+        return url
+    if not isinstance(source, str) or not source.startswith("prvt_api"):
+        return url  # not a prvt row
+    if not isinstance(bid_no, str) or not bid_no:
+        return None
+    import urllib.parse
+    # bid_no may carry '-ord' suffix (e.g. 'R26BK01482245-000'); strip for query
+    core_no = bid_no.split("-", 1)[0]
+    title_part = (title if isinstance(title, str) else "")[:20]
+    q = f"{core_no} {title_part}".strip()
+    return f"https://www.google.com/search?q={urllib.parse.quote(q)}"
+
+
 def _parse_open_date(s):
     """open_date 문자열을 date로 파싱. 소스별 포맷 다양:
       G2B/누리: '2026-04-22 10:00', '2026-04-22 10:00:00'
@@ -506,9 +528,15 @@ def rows_to_dataframe(rows: list[dict]) -> pd.DataFrame:
     if "source" in df.columns:
         df["source_label"] = df["source"].map(SOURCE_LABELS).fillna(df["source"])
     if "detail_url" in df.columns and "title" in df.columns:
+        sources_col = df["source"] if "source" in df.columns else [""] * len(df)
+        bidnos_col  = df["bid_no"] if "bid_no" in df.columns else [""] * len(df)
         df["detail_url"] = [
-            _fix_kepco_url(_fix_alio_url(u, t))
-            for u, t in zip(df["detail_url"], df["title"])
+            _fix_kepco_url(_fix_alio_url(
+                _fix_prvt_url(u, s, b, t), t
+            ))
+            for u, s, b, t in zip(
+                df["detail_url"], sources_col, bidnos_col, df["title"]
+            )
         ]
     # "신규" 배지 — 오늘 올라온 공고만 "N"
     today = date.today()
@@ -1121,14 +1149,25 @@ def main() -> None:
     st.write(f"**검색 결과: {len(df):,}건**")
 
     if len(df) > 0:
+        # NEW 배지: "N" 값에 연노랑 배경 + 검정 볼드 + 가운데 정렬.
+        # pandas Styler 는 st.dataframe 에서 CSS 로 렌더됨.
+        def _style_new(v):
+            if v == "N":
+                return ("background-color: #FFF59D; color: #000000; "
+                        "font-weight: 800; text-align: center;")
+            return ""
+        styled = df.style.applymap(_style_new, subset=["신규"])
+
         st.dataframe(
-            df,
+            styled,
             width="stretch",
             hide_index=True,
             column_config={
-                "신규": st.column_config.TextColumn("신규",
-                                                   width="small",
-                                                   help="오늘 올라온 공고 ('N')"),
+                # 헤더를 "N"으로 축약 → 열폭 최소화 + width="small" 유지
+                "신규": st.column_config.TextColumn(
+                    "N", width="small",
+                    help="오늘 올라온 공고는 'N' 으로 표시",
+                ),
                 "bid_no": st.column_config.TextColumn("공고번호", width="small"),
                 "title": st.column_config.TextColumn("제목", width="large"),
                 "org_name": st.column_config.TextColumn("기관", width="medium"),
