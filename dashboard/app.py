@@ -353,6 +353,24 @@ p, .stMarkdown, body { color: var(--text-body); }
 /* ─── Checkboxes ─── */
 [data-testid="stCheckbox"] label { font-size: 0.9rem; font-weight: 500; }
 
+/* ─── 표 상단바 (건수 좌 + 엑셀 아이콘 우 · 표에 밀착) ─── */
+.tbl-topbar-count {
+  padding: 4px 2px 2px 2px;
+  font-size: 0.9rem;
+  color: var(--fg);
+}
+.tbl-topbar-dl {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0;
+  margin-bottom: -6px;  /* 표와 간격 최소화 */
+}
+/* 이 상단바와 직후 dataframe 사이 마진 제거 → '표에 붙은' 느낌 */
+:has(> .tbl-topbar-dl) + div [data-testid="stDataFrame"],
+:has(> .tbl-topbar-count) ~ div [data-testid="stDataFrame"] {
+  margin-top: 0 !important;
+}
+
 /* ─── 엑셀 다운로드 아이콘 (우상단·작게·옅은 색) ─── */
 [data-testid="stDownloadButton"] button {
   background: transparent !important;
@@ -1259,11 +1277,7 @@ def main() -> None:
         st.caption(f"DB: `{db_path.name}` · 최종 업데이트 {last_update}")
 
     # ── Section 2: 필터 적용된 목록 (live-reactive) ──
-    # 제목(좌) + 엑셀 다운로드 아이콘(우상단)
-    _hdr_col, _dl_col = st.columns([9, 1])
-    with _hdr_col:
-        st.markdown("### 📋 공고 목록")
-    _dl_slot = _dl_col.empty()  # df 계산 후 채움
+    st.markdown("### 📋 공고 목록")
 
     # DB 전체 조회 (공고일 필터는 Python-side에서 적용, 소스별 날짜 포맷이 달라서)
     since_str = None
@@ -1312,23 +1326,32 @@ def main() -> None:
     rows = keyword_filter.apply_filters(rows, filter_cfg)
 
     df = rows_to_dataframe(rows)
-    st.write(f"**검색 결과: {len(df):,}건**")
 
-    # 헤더 우상단에 배치한 placeholder 에 엑셀 다운로드 아이콘 주입
+    # 표 바로 위 한 줄: 좌측 건수 / 우측 엑셀 다운로드 (표 우상단에 붙음)
+    _cnt_col, _dl_col = st.columns([5, 1])
+    _cnt_col.markdown(
+        f"<div class='tbl-topbar-count'>검색 결과: "
+        f"<b>{len(df):,}</b>건</div>",
+        unsafe_allow_html=True,
+    )
     if len(df) > 0:
         try:
             xlsx_bytes = df_to_excel_bytes(df)
-            _dl_slot.download_button(
-                "⤓ xlsx",
-                data=xlsx_bytes,
-                file_name=f"bids_{date.today().isoformat()}.xlsx",
-                mime=("application/vnd.openxmlformats-officedocument"
-                      ".spreadsheetml.sheet"),
-                key="excel_dl_btn",
-                help="현재 필터가 적용된 검색 결과를 엑셀로 저장",
-            )
+            with _dl_col:
+                st.markdown('<div class="tbl-topbar-dl">',
+                            unsafe_allow_html=True)
+                st.download_button(
+                    "⤓ xlsx",
+                    data=xlsx_bytes,
+                    file_name=f"bids_{date.today().isoformat()}.xlsx",
+                    mime=("application/vnd.openxmlformats-officedocument"
+                          ".spreadsheetml.sheet"),
+                    key="excel_dl_btn",
+                    help="현재 필터가 적용된 검색 결과를 엑셀로 저장",
+                )
+                st.markdown("</div>", unsafe_allow_html=True)
         except Exception as e:
-            _dl_slot.caption(f"xlsx 변환 실패: {type(e).__name__}")
+            _dl_col.caption(f"xlsx 변환 실패: {type(e).__name__}")
 
     if len(df) > 0:
         # NEW 배지: "N" 값에 연노랑 배경 + 검정 볼드 + 가운데 정렬.
