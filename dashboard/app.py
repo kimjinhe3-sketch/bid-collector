@@ -996,37 +996,77 @@ def main() -> None:
     st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
     # 모바일 세로 스크롤 갇힘 해결: glide-data-grid(Streamlit dataframe 엔진)가
-    # touchmove 에 preventDefault 를 걸어 CSS touch-action 이 우회됨. 캡처 단계
-    # 에서 세로 위주 제스처면 해당 핸들러를 stopImmediatePropagation 로 차단.
+    # touchmove 에 preventDefault(passive:false) 를 걸어 CSS touch-action 이
+    # 우회됨. 두 단계 방어:
+    #   1) 캡처 단계에서 grid 핸들러 stopImmediatePropagation
+    #   2) window/document/html 모두에 리스너 부착 (어느 것이 먼저 호출되든 잡힘)
+    #   3) passive:false 로 등록해 필요 시 preventDefault 직접 호출
     import streamlit.components.v1 as _components
     _components.html("""
     <script>
     (function(){
-      var p = window.parent; if (!p || !p.document) return;
-      if (p.__bidTouchFixed) return; p.__bidTouchFixed = true;
-      var sx=0, sy=0;
-      p.document.addEventListener('touchstart', function(e){
-        if (!e.touches || !e.touches[0]) return;
-        sx = e.touches[0].clientX; sy = e.touches[0].clientY;
-      }, { capture: true, passive: true });
-      p.document.addEventListener('touchmove', function(e){
-        if (!e.touches || !e.touches[0]) return;
-        var t = e.target;
-        var inDf = false;
-        while (t) {
-          if (t.getAttribute && t.getAttribute('data-testid') === 'stDataFrame') {
-            inDf = true; break;
+      try {
+        var p = window.parent;
+        if (!p || !p.document) return;
+        // 매 rerun 마다 재설치 (Streamlit 이 DOM 을 재렌더 할 때 listener 가
+        // 남아있어도 중복 호출만 발생 — 상단에 removeEventListener 시도).
+        if (p.__bidTouchCleanup) { try { p.__bidTouchCleanup(); } catch(_){} }
+
+        var sx = 0, sy = 0, tracking = false;
+
+        var onStart = function(e){
+          if (!e.touches || !e.touches[0]) return;
+          sx = e.touches[0].clientX;
+          sy = e.touches[0].clientY;
+          tracking = true;
+        };
+        var onMove = function(e){
+          if (!tracking || !e.touches || !e.touches[0]) return;
+          var t = e.target;
+          var inDf = false;
+          // target → ancestor 체크. shadow dom 도 따라 올라감.
+          while (t) {
+            if (t.getAttribute && (
+                t.getAttribute('data-testid') === 'stDataFrame' ||
+                (t.className && String(t.className).indexOf('dvn-') >= 0) ||
+                t.tagName === 'CANVAS')) {
+              inDf = true; break;
+            }
+            t = t.parentNode || (t.host ? t.host : null);
           }
-          t = t.parentNode || (t.host ? t.host : null);
-        }
-        if (!inDf) return;
-        var dx = Math.abs(e.touches[0].clientX - sx);
-        var dy = Math.abs(e.touches[0].clientY - sy);
-        if (dy > dx * 1.2) {
-          // 세로 제스처 → glide-data-grid 핸들러 무력화, 페이지 스크롤 허용
-          e.stopImmediatePropagation();
-        }
-      }, { capture: true, passive: true });
+          if (!inDf) return;
+          var dx = Math.abs(e.touches[0].clientX - sx);
+          var dy = Math.abs(e.touches[0].clientY - sy);
+          if (dy > dx * 1.0) {
+            // 세로 우세 → 페이지 스크롤을 살림:
+            //   a) grid 의 preventDefault 핸들러가 뒤에 돌지 못하게 stop
+            //   b) passive:false 로 등록했기에 필요 시 preventDefault 호출 가능
+            //      그러나 여기선 브라우저 기본 스크롤을 허용해야 하므로 생략
+            e.stopImmediatePropagation();
+          }
+        };
+        var onEnd = function(){ tracking = false; };
+
+        // 최대한 상위 (capture) 에서 잡는다
+        var targets = [p.window, p.document, p.document.documentElement, p.document.body];
+        targets.forEach(function(tg){
+          if (!tg) return;
+          tg.addEventListener('touchstart', onStart, { capture: true, passive: true });
+          tg.addEventListener('touchmove',  onMove,  { capture: true, passive: false });
+          tg.addEventListener('touchend',   onEnd,   { capture: true, passive: true });
+          tg.addEventListener('touchcancel', onEnd,  { capture: true, passive: true });
+        });
+
+        p.__bidTouchCleanup = function(){
+          targets.forEach(function(tg){
+            if (!tg) return;
+            tg.removeEventListener('touchstart', onStart, { capture: true });
+            tg.removeEventListener('touchmove',  onMove,  { capture: true });
+            tg.removeEventListener('touchend',   onEnd,   { capture: true });
+            tg.removeEventListener('touchcancel', onEnd,  { capture: true });
+          });
+        };
+      } catch (err) { /* ignore */ }
     })();
     </script>
     """, height=0)
