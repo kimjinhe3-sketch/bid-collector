@@ -353,6 +353,26 @@ p, .stMarkdown, body { color: var(--text-body); }
 /* ─── Checkboxes ─── */
 [data-testid="stCheckbox"] label { font-size: 0.9rem; font-weight: 500; }
 
+/* ─── 엑셀 다운로드 아이콘 (우상단·작게·옅은 색) ─── */
+[data-testid="stDownloadButton"] button {
+  background: transparent !important;
+  color: rgba(120, 95, 80, 0.6) !important;
+  border: 1px solid rgba(216, 90, 48, 0.2) !important;
+  padding: 2px 10px !important;
+  font-size: 0.72rem !important;
+  font-weight: 500 !important;
+  min-height: 28px !important;
+  height: 28px !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  transition: all 0.15s ease;
+}
+[data-testid="stDownloadButton"] button:hover {
+  background: rgba(216, 90, 48, 0.06) !important;
+  color: var(--accent) !important;
+  border-color: rgba(216, 90, 48, 0.45) !important;
+}
+
 /* ─── Dataframe (spec colors) ─── */
 [data-testid="stDataFrame"] {
   border-radius: var(--radius) !important;
@@ -1239,7 +1259,11 @@ def main() -> None:
         st.caption(f"DB: `{db_path.name}` · 최종 업데이트 {last_update}")
 
     # ── Section 2: 필터 적용된 목록 (live-reactive) ──
-    st.markdown("### 📋 공고 목록")
+    # 제목(좌) + 엑셀 다운로드 아이콘(우상단)
+    _hdr_col, _dl_col = st.columns([9, 1])
+    with _hdr_col:
+        st.markdown("### 📋 공고 목록")
+    _dl_slot = _dl_col.empty()  # df 계산 후 채움
 
     # DB 전체 조회 (공고일 필터는 Python-side에서 적용, 소스별 날짜 포맷이 달라서)
     since_str = None
@@ -1288,27 +1312,23 @@ def main() -> None:
     rows = keyword_filter.apply_filters(rows, filter_cfg)
 
     df = rows_to_dataframe(rows)
+    st.write(f"**검색 결과: {len(df):,}건**")
 
-    # 검색 결과 요약 + 엑셀 다운로드 버튼 한 줄 배치
-    _col_cnt, _col_dl = st.columns([5, 2])
-    with _col_cnt:
-        st.write(f"**검색 결과: {len(df):,}건**")
-    with _col_dl:
-        if len(df) > 0:
-            try:
-                xlsx_bytes = df_to_excel_bytes(df)
-                st.download_button(
-                    "엑셀 다운로드",
-                    data=xlsx_bytes,
-                    file_name=f"bids_{date.today().isoformat()}.xlsx",
-                    mime=("application/vnd.openxmlformats-officedocument"
-                          ".spreadsheetml.sheet"),
-                    width="stretch",
-                    key="excel_dl_btn",
-                    help="현재 필터가 적용된 검색 결과 전체를 엑셀로 저장",
-                )
-            except Exception as e:
-                st.caption(f"엑셀 변환 실패: {type(e).__name__}")
+    # 헤더 우상단에 배치한 placeholder 에 엑셀 다운로드 아이콘 주입
+    if len(df) > 0:
+        try:
+            xlsx_bytes = df_to_excel_bytes(df)
+            _dl_slot.download_button(
+                "⤓ xlsx",
+                data=xlsx_bytes,
+                file_name=f"bids_{date.today().isoformat()}.xlsx",
+                mime=("application/vnd.openxmlformats-officedocument"
+                      ".spreadsheetml.sheet"),
+                key="excel_dl_btn",
+                help="현재 필터가 적용된 검색 결과를 엑셀로 저장",
+            )
+        except Exception as e:
+            _dl_slot.caption(f"xlsx 변환 실패: {type(e).__name__}")
 
     if len(df) > 0:
         # NEW 배지: "N" 값에 연노랑 배경 + 검정 볼드 + 가운데 정렬.
@@ -1329,7 +1349,7 @@ def main() -> None:
             hide_index=True,
             column_config={
                 "신규": st.column_config.TextColumn(
-                    "신규", width="small",
+                    "신규", width=55,  # 픽셀 단위 — small(~100)의 약 절반
                     help="오늘 올라온 공고는 'new' 로 표시",
                 ),
                 "bid_no": st.column_config.TextColumn("공고번호", width="small"),
