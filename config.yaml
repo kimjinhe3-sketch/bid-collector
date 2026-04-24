@@ -9,7 +9,7 @@ collection:
     prvt_api: true       # 누리장터 민간입찰공고 (G2B 서비스키 공용, 4 오퍼레이션)
   request_sleep_seconds: 0.5   # 페이지 간 대기 (너무 낮으면 rate limit 걸림)
   page_size: 100
-  lookback_days: 1
+  lookback_days: 3   # 최근 N일간 공고 수집 (1이면 어제만, 3이면 그저께까지)
   alio:
     keyword: ""
     max_pages: 10

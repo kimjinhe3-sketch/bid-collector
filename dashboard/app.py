@@ -239,14 +239,23 @@ p, .stMarkdown, body { color: var(--text-body); }
   border-color: var(--border-strong) !important;
   background: #fdfcf7 !important;
 }
-.stButton > button[kind="primary"] {
+.stButton > button[kind="primary"],
+.stButton > button[kind="primary"] *,
+.stButton > button[kind="primary"] p,
+.stButton > button[kind="primary"] span,
+.stButton > button[kind="primary"] div {
   background: var(--accent) !important;
-  color: #fff !important;
+  color: #ffffff !important;
   border: 1px solid var(--accent) !important;
+  -webkit-text-fill-color: #ffffff !important;
 }
-.stButton > button[kind="primary"]:hover {
+.stButton > button[kind="primary"] svg { fill: #ffffff !important; }
+.stButton > button[kind="primary"]:hover,
+.stButton > button[kind="primary"]:hover * {
   background: var(--accent-hover) !important;
   border-color: var(--accent-hover) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
 }
 
 /* ─── Inputs ─── */
@@ -258,6 +267,26 @@ p, .stMarkdown, body { color: var(--text-body); }
   background: var(--card) !important;
   font-size: 0.88rem !important;
   color: var(--fg) !important;
+}
+
+/* ─── Multiselect 선택된 태그 (업종 등) — 코랄 팔레트 ─── */
+.stMultiSelect [data-baseweb="tag"],
+[data-baseweb="tag"] {
+  background-color: var(--tag-include-bg) !important;
+  color: var(--tag-include-text) !important;
+  border: 1px solid var(--tag-include-border) !important;
+  border-radius: 999px !important;
+  font-weight: 500 !important;
+}
+.stMultiSelect [data-baseweb="tag"] span,
+[data-baseweb="tag"] span {
+  color: var(--tag-include-text) !important;
+  -webkit-text-fill-color: var(--tag-include-text) !important;
+}
+.stMultiSelect [data-baseweb="tag"] svg,
+[data-baseweb="tag"] svg {
+  fill: var(--tag-include-text) !important;
+  color: var(--tag-include-text) !important;
 }
 .stTextInput input:focus, .stTextArea textarea:focus,
 .stDateInput input:focus, .stNumberInput input:focus {
