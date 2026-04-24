@@ -847,9 +847,9 @@ def main() -> None:
     for _k, _v in {**_filter_defaults, **_misc_defaults}.items():
         st.session_state.setdefault(_k, _v)
 
-    # ── Tabs: 입찰 공고 / 인허가 현황 ──
-    tab_bid, tab_permit = st.tabs(["입찰 공고", "인허가 현황"])
-    _tab_ctx = tab_bid.__enter__()
+    # ── 인허가 탭은 임시 숨김 (아래 블록을 `if True:` 로 바꾸면 복원) ──
+    # tab_bid, tab_permit = st.tabs(["입찰 공고", "인허가 현황"])
+    # _tab_ctx = tab_bid.__enter__()
 
     # ── Section 1: 상단 그룹 필터 체크박스 (중복 선택 가능) ──
     st.markdown("### 오늘의 수집 현황")
@@ -1167,9 +1167,9 @@ def main() -> None:
         )
 
     # ── 입찰 공고 탭 종료, 인허가 현황 탭 시작 ──
-    tab_bid.__exit__(None, None, None)
+    # tab_bid.__exit__(None, None, None)
 
-    with tab_permit:
+    if False:  # 인허가 탭 임시 숨김 — 기능 재활성화 시 True 로 변경
         from collectors import permit_api
         from dashboard.permit_regions import REGION_PRESETS
 
