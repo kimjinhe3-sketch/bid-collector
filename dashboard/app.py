@@ -995,6 +995,42 @@ def main() -> None:
     )
     st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
+    # 모바일 세로 스크롤 갇힘 해결: glide-data-grid(Streamlit dataframe 엔진)가
+    # touchmove 에 preventDefault 를 걸어 CSS touch-action 이 우회됨. 캡처 단계
+    # 에서 세로 위주 제스처면 해당 핸들러를 stopImmediatePropagation 로 차단.
+    import streamlit.components.v1 as _components
+    _components.html("""
+    <script>
+    (function(){
+      var p = window.parent; if (!p || !p.document) return;
+      if (p.__bidTouchFixed) return; p.__bidTouchFixed = true;
+      var sx=0, sy=0;
+      p.document.addEventListener('touchstart', function(e){
+        if (!e.touches || !e.touches[0]) return;
+        sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+      }, { capture: true, passive: true });
+      p.document.addEventListener('touchmove', function(e){
+        if (!e.touches || !e.touches[0]) return;
+        var t = e.target;
+        var inDf = false;
+        while (t) {
+          if (t.getAttribute && t.getAttribute('data-testid') === 'stDataFrame') {
+            inDf = true; break;
+          }
+          t = t.parentNode || (t.host ? t.host : null);
+        }
+        if (!inDf) return;
+        var dx = Math.abs(e.touches[0].clientX - sx);
+        var dy = Math.abs(e.touches[0].clientY - sy);
+        if (dy > dx * 1.2) {
+          // 세로 제스처 → glide-data-grid 핸들러 무력화, 페이지 스크롤 허용
+          e.stopImmediatePropagation();
+        }
+      }, { capture: true, passive: true });
+    })();
+    </script>
+    """, height=0)
+
     config = load_config(ROOT / "config.yaml")
     db_path = ROOT / (config.get("database", {}).get("path") or "data/bids.sqlite")
 
