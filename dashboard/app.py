@@ -453,25 +453,27 @@ def _fix_alio_url(url, title) -> str | None:
 
 
 def _fix_prvt_url(url, source, bid_no, title) -> str | None:
-    """누리장터(prvt_api_*) API는 detail URL을 제공하지 않음. 또한 nuri.g2b.go.kr
-    및 www.g2b.go.kr 의 모든 상세 경로는 SSO 로그인 벽에 막힘 (="시스템 접근 안내").
-
-    → 구글 검색 URL을 생성해 공고번호 + 제목 앞부분으로 검색. Google 색인에
-    nuri.g2b.go.kr 공개 캐시 및 관련 입찰정보 사이트들이 나와 사실상 바로
-    열람 가능. 기존 url 값이 있으면 그대로 사용.
+    """누리장터(prvt_api_*) rows: 신규 수집 시에는 API 응답의 공고문 PDF URL
+    (ntceSpecDocUrl1) 이 이미 채워져 있음. 레거시 레코드는 None 으로 남아있는데,
+    bid_no 포맷 `{bidPbancNo}-{bidPbancOrd}` 에서 파라미터를 복원해 공개 다운로드
+    URL 을 재구성. prcmBsneSeCd 는 누리장터 기본값 22 로 가정.
     """
     if isinstance(url, str) and url.strip():
         return url
     if not isinstance(source, str) or not source.startswith("prvt_api"):
-        return url  # not a prvt row
+        return url  # not a prvt row — leave as-is
     if not isinstance(bid_no, str) or not bid_no:
         return None
-    import urllib.parse
-    # bid_no may carry '-ord' suffix (e.g. 'R26BK01482245-000'); strip for query
-    core_no = bid_no.split("-", 1)[0]
-    title_part = (title if isinstance(title, str) else "")[:20]
-    q = f"{core_no} {title_part}".strip()
-    return f"https://www.google.com/search?q={urllib.parse.quote(q)}"
+    if "-" in bid_no:
+        core_no, ord_part = bid_no.split("-", 1)
+    else:
+        core_no, ord_part = bid_no, "000"
+    ord_part = (ord_part or "000").zfill(3)[-3:]
+    return (
+        "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do"
+        f"?bidPbancNo={core_no}&bidPbancOrd={ord_part}"
+        f"&fileType=&fileSeq=1&prcmBsneSeCd=22"
+    )
 
 
 def _parse_open_date(s):

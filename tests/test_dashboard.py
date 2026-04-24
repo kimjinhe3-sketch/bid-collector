@@ -84,12 +84,13 @@ def test_rows_to_dataframe_upgrades_kepco_http_to_https():
     assert urls[1] == "https://srm.kepco.net/printDownloadAttachment.do?id=xyz"
 
 
-def test_rows_to_dataframe_generates_prvt_search_url_when_missing():
-    """누리장터 (prvt_api_*) rows have no detail_url by default.
-    rows_to_dataframe should fall back to a Google search URL so the link
-    column is always clickable."""
+def test_rows_to_dataframe_reconstructs_prvt_pdf_url_when_missing():
+    """Legacy 누리장터 rows may have detail_url=None. rows_to_dataframe
+    should reconstruct the 공고문 PDF download URL from bid_no so the link
+    column is always clickable. URL format mirrors what the API returns.
+    """
     rows = [
-        {**_row(1, source="prvt_api_servc"), "title": "ABC 교회 태양광 설치",
+        {**_row(1, source="prvt_api_servc"), "title": "ABC 교회 태양광",
          "bid_no": "R26BK01482245-000", "detail_url": None},
         {**_row(2, source="prvt_api_thng"), "title": "XX 아파트 승강기",
          "bid_no": "R26BK01500000", "detail_url": ""},
@@ -101,17 +102,22 @@ def test_rows_to_dataframe_generates_prvt_search_url_when_missing():
     ]
     df = dashboard.rows_to_dataframe(rows)
     urls = list(df["detail_url"])
-    assert urls[0].startswith("https://www.google.com/search?q=")
-    assert "R26BK01482245" in urls[0]
-    assert urls[1].startswith("https://www.google.com/search?q=")
-    assert "R26BK01500000" in urls[1]
+    # Legacy prvt with -ord suffix → properly split
+    assert "bidPbancNo=R26BK01482245" in urls[0]
+    assert "bidPbancOrd=000" in urls[0]
+    assert "prcmBsneSeCd=22" in urls[0]
+    # No -ord suffix → default 000 used
+    assert "bidPbancNo=R26BK01500000" in urls[1]
+    assert "bidPbancOrd=000" in urls[1]
+    assert urls[0].startswith("https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/")
+    # Existing URL not overridden
     assert urls[2] == "https://example.com/real"
-    # g2b row with None stays None/NaN/empty — no Google fallback
+    # g2b row with None stays None/NaN — not touched
     import math
     u3 = urls[3]
     is_empty = (u3 is None or u3 == ""
                 or (isinstance(u3, float) and math.isnan(u3)))
-    assert is_empty or (isinstance(u3, str) and "google.com" not in u3)
+    assert is_empty or (isinstance(u3, str) and "g2b.go.kr/pn/pnp" not in u3)
 
 
 def test_rows_to_dataframe_rewrites_stale_alio_bidview_urls():

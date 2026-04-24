@@ -74,6 +74,36 @@ def test_iterates_four_operations():
     assert {r["bid_type"] for r in rows} == {"용역", "물품", "공사", "기타"}
 
 
+def test_detail_url_picks_first_nonempty_ntceSpecDocUrl():
+    """API 응답의 ntceSpecDocUrl1~10 중 첫 비어있지 않은 http URL 을 detail_url 로."""
+    data = {"response": {"body": {"totalCount": 1, "items": [
+        {"bidNtceNo": "DOC1", "ntceNm": "다운로드 있는 공고",
+         "ntceSpecDocUrl1": "",
+         "ntceSpecDocUrl2": "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?bidPbancNo=DOC1&bidPbancOrd=000&fileType=&fileSeq=2&prcmBsneSeCd=22",
+         "ntceSpecDocUrl3": "https://nope.example/"},
+    ]}}}
+    rows = prvt_api.collect_all(service_key="K", sleep_seconds=0,
+                                 http_client=_client(data))
+    assert len(rows) == 4  # 4 operations each see same fixture
+    for r in rows:
+        # 두 번째 URL 이 첫 비어있지 않은 http 값
+        assert r["detail_url"].startswith(
+            "https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/"
+        )
+        assert "bidPbancNo=DOC1" in r["detail_url"]
+
+
+def test_detail_url_none_when_no_ntceSpecDoc_provided():
+    """공고문 파일이 아직 등록되지 않은 공고는 detail_url=None."""
+    data = {"response": {"body": {"totalCount": 1, "items": [
+        {"bidNtceNo": "NODOC", "ntceNm": "파일 없는 공고"},
+    ]}}}
+    rows = prvt_api.collect_all(service_key="K", sleep_seconds=0,
+                                 http_client=_client(data))
+    for r in rows:
+        assert r["detail_url"] is None
+
+
 def test_skips_items_missing_required_fields():
     data = {"response": {"body": {"totalCount": 3, "items": [
         {"bidNtceNo": "", "ntceNm": "제목만"},   # no bid_no

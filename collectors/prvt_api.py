@@ -74,13 +74,19 @@ def _yesterday_range(now: datetime | None = None, lookback_days: int = 1) -> tup
     return start.strftime(fmt), end.strftime(fmt)
 
 
-def _build_search_url(bid_no: str, title: str) -> str:
-    """누리장터 공고는 nuri.g2b.go.kr / www.g2b.go.kr 공식 상세 경로가 모두
-    SSO 로그인 벽에 막혀있음. 구글 검색 URL을 fallback 으로 생성.
+def _pick_doc_url(item: dict) -> str | None:
+    """API 응답의 ntceSpecDocUrl1 ~ 10 중 첫 번째 비어있지 않은 값.
+
+    이 URL은 공고문 PDF 직접 다운로드 주소 (SSO 불필요, 실제로 다운로드 동작
+    확인됨). 사용자가 클릭하면 공고문 PDF 가 바로 열림.
+    예: https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do?
+        bidPbancNo=R26BK01482245&bidPbancOrd=000&fileType=&fileSeq=1&prcmBsneSeCd=22
     """
-    import urllib.parse
-    query = f"{bid_no} {title[:20]}".strip()
-    return f"https://www.google.com/search?q={urllib.parse.quote(query)}"
+    for i in range(1, 11):
+        v = item.get(f"ntceSpecDocUrl{i}")
+        if v and isinstance(v, str) and v.strip().startswith("http"):
+            return v.strip()
+    return None
 
 
 def _normalize(item: dict, source: str, bid_type: str) -> dict | None:
@@ -104,7 +110,8 @@ def _normalize(item: dict, source: str, bid_type: str) -> dict | None:
         "open_date": _pick(item, ("bidBeginDt", "nticeDt", "bidNtceDt")),
         "close_date": item.get("bidClseDt"),
         "bid_type": bid_type,
-        "detail_url": _build_search_url(str(bid_no), title_str),
+        # 공고문 PDF 직접 다운로드 URL (공개, SSO 불필요)
+        "detail_url": _pick_doc_url(item),
     }
 
 
