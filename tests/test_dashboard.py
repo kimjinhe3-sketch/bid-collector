@@ -41,7 +41,7 @@ def test_rows_to_dataframe_new_badge_today_only():
     ]
     df = dashboard.rows_to_dataframe(rows)
     vals = list(df["신규"])
-    assert vals[0] == "N"     # 오늘 → N
+    assert vals[0] == "new"   # 오늘 → new
     assert vals[1] == ""      # 어제 → 공란
     assert vals[2] == ""      # 파싱 실패 → 공란
 

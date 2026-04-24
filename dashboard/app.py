@@ -542,7 +542,7 @@ def rows_to_dataframe(rows: list[dict]) -> pd.DataFrame:
     today = date.today()
     if "open_date" in df.columns:
         df["신규"] = df["open_date"].apply(
-            lambda s: "N" if _is_new_today(s, today) else ""
+            lambda s: "new" if _is_new_today(s, today) else ""
         )
     else:
         df["신규"] = ""
@@ -1153,7 +1153,7 @@ def main() -> None:
         # pandas Styler 는 st.dataframe 에서 CSS 로 렌더됨.
         # pandas 2.1+ 는 Styler.map(), 이전 버전은 Styler.applymap() — 버전 호환.
         def _style_new(v):
-            if v == "N":
+            if v == "new":
                 return ("background-color: #FFF59D; color: #000000; "
                         "font-weight: 800; text-align: center;")
             return ""
@@ -1166,10 +1166,9 @@ def main() -> None:
             width="stretch",
             hide_index=True,
             column_config={
-                # 헤더를 "N"으로 축약 → 열폭 최소화 + width="small" 유지
                 "신규": st.column_config.TextColumn(
-                    "N", width="small",
-                    help="오늘 올라온 공고는 'N' 으로 표시",
+                    "신규", width="small",
+                    help="오늘 올라온 공고는 'new' 로 표시",
                 ),
                 "bid_no": st.column_config.TextColumn("공고번호", width="small"),
                 "title": st.column_config.TextColumn("제목", width="large"),
