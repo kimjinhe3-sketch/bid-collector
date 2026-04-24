@@ -108,13 +108,37 @@ CUSTOM_CSS = """
 
 html, body, .stApp { background: var(--bg) !important; }
 
-body, [class^="st-"], [class*=" st-"], .stMarkdown,
-input, textarea, button, select {
+/* 한글 친화 폰트 — 전역 기본만 설정 (Material Icons는 건드리지 않음) */
+body, .stApp {
   font-family: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo",
-               Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+               Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--fg);
   letter-spacing: -0.003em;
   -webkit-font-smoothing: antialiased;
+}
+
+/* 명시적 요소들만 !important — 아이콘 span은 제외 */
+.stMarkdown, .stMarkdown p, .stMarkdown li, .stMarkdown span,
+.stTextInput input, .stTextArea textarea,
+.stDateInput input, .stNumberInput input,
+.stButton > button, .stDownloadButton > button,
+[data-testid="stCheckbox"] label, label, p {
+  font-family: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo",
+               Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  color: var(--fg);
+}
+
+/* Material Icons / Symbols 원본 폰트 강제 복구 (내 Pretendard 오버라이드로 덮인 것 되돌림) */
+.material-icons, .material-symbols-outlined, .material-symbols-rounded,
+span[class*="material-icons"], span[class*="material-symbols"],
+[data-testid="stIconMaterial"], [data-testid*="Icon"] > span {
+  font-family: "Material Symbols Rounded", "Material Symbols Outlined",
+               "Material Icons" !important;
+  font-feature-settings: "liga" !important;
+  font-weight: normal !important;
+  font-style: normal !important;
+  line-height: 1 !important;
+  letter-spacing: normal !important;
 }
 
 /* Headers use serif like Claude.ai */
