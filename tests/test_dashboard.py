@@ -84,6 +84,48 @@ def test_rows_to_dataframe_upgrades_kepco_http_to_https():
     assert urls[1] == "https://srm.kepco.net/printDownloadAttachment.do?id=xyz"
 
 
+def test_df_to_excel_bytes_returns_valid_xlsx():
+    """df_to_excel_bytes 는 openpyxl 로 읽을 수 있는 유효한 xlsx 바이트를 반환.
+    헤더/하이퍼링크/NEW 배지 포맷이 포함되어야 함.
+    """
+    import io
+    from openpyxl import load_workbook
+    from datetime import date, timedelta
+
+    today = date.today()
+    rows = [
+        {**_row(1), "title": "오늘 공고",
+         "open_date": today.strftime("%Y-%m-%d %H:%M"),
+         "estimated_price": 850_000_000,
+         "detail_url": "https://example.com/1"},
+        {**_row(2), "title": "어제 공고",
+         "open_date": (today - timedelta(days=1)).strftime("%Y-%m-%d"),
+         "estimated_price": None,
+         "detail_url": None},
+    ]
+    df = dashboard.rows_to_dataframe(rows)
+    buf = dashboard.df_to_excel_bytes(df)
+    assert isinstance(buf, bytes) and len(buf) > 1000
+
+    wb = load_workbook(io.BytesIO(buf))
+    ws = wb.active
+    # 헤더 첫 행
+    headers = [c.value for c in ws[1]]
+    assert "공고번호" in headers
+    assert "제목" in headers
+    assert "금액(억원)" in headers
+    assert "상세보기(링크)" in headers
+    # 2행(오늘 공고): NEW 배지 셀 = 'new' 값, hyperlink 존재
+    assert ws.cell(row=2, column=headers.index("신규") + 1).value == "new"
+    link_cell = ws.cell(row=2, column=headers.index("상세보기(링크)") + 1)
+    assert link_cell.hyperlink is not None
+    assert link_cell.hyperlink.target == "https://example.com/1"
+    assert link_cell.value == "열기"
+    # 3행(어제): 신규 셀 공백, detail_url None → 일반 셀
+    assert ws.cell(row=3, column=headers.index("신규") + 1).value in ("", None)
+    assert ws.freeze_panes == "A2"
+
+
 def test_rows_to_dataframe_reconstructs_prvt_pdf_url_when_missing():
     """Legacy 누리장터 rows may have detail_url=None. rows_to_dataframe
     should reconstruct the 공고문 PDF download URL from bid_no so the link

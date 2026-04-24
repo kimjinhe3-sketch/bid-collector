@@ -602,6 +602,95 @@ def rows_to_dataframe(rows: list[dict]) -> pd.DataFrame:
     return df[[c for c in cols if c in df.columns]]
 
 
+def df_to_excel_bytes(df: pd.DataFrame,
+                        sheet_name: str = "입찰공고") -> bytes:
+    """Convert displayed dataframe → formatted XLSX bytes.
+
+    헤더 한글화, 칼럼 순서 정리, 금액은 숫자 포맷, 상세보기는 하이퍼링크,
+    열 너비 자동 조정.
+    """
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    # 한글 헤더 매핑 (dashboard 컬럼명 → 엑셀 표기)
+    header_map = {
+        "신규": "신규",
+        "bid_no": "공고번호",
+        "title": "제목",
+        "org_name": "공고기관",
+        "금액(억원)": "금액(억원)",
+        "close_date": "마감일시",
+        "bid_type": "업종",
+        "source_label": "출처",
+        "detail_url": "상세보기(링크)",
+    }
+    # 컬럼 순서 고정
+    ordered = [c for c in header_map if c in df.columns]
+    out_df = df[ordered].copy()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = sheet_name
+
+    # 헤더
+    thin = Side(border_style="thin", color="D6D3CE")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    header_fill = PatternFill("solid", fgColor="F1EFE8")  # warm soft
+    header_font = Font(bold=True, color="3E2C20")         # coffee text
+    new_fill    = PatternFill("solid", fgColor="FFF59D")  # NEW 배지 (연노랑)
+    new_font    = Font(bold=True, color="000000")
+
+    for col_idx, col in enumerate(ordered, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=header_map[col])
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = border
+
+    # 데이터 행
+    for r_idx, row in enumerate(out_df.itertuples(index=False), start=2):
+        for c_idx, (col_name, val) in enumerate(zip(ordered, row), start=1):
+            # NaN/None/float-NaN 을 깔끔히 처리
+            if val is None:
+                v = None
+            elif isinstance(val, float):
+                import math
+                v = None if math.isnan(val) else val
+            else:
+                v = val
+            cell = ws.cell(row=r_idx, column=c_idx, value=v)
+            cell.border = border
+            cell.alignment = Alignment(vertical="center", wrap_text=False)
+
+            if col_name == "금액(억원)":
+                cell.number_format = "#,##0.00"
+                cell.alignment = Alignment(horizontal="right", vertical="center")
+            elif col_name == "신규" and v == "new":
+                cell.fill = new_fill
+                cell.font = new_font
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            elif col_name == "detail_url" and isinstance(v, str) and v.startswith("http"):
+                cell.hyperlink = v
+                cell.value = "열기"
+                cell.font = Font(color="0563C1", underline="single")
+
+    # 열 너비 자동 (간이 heuristic)
+    widths = {"신규": 6, "bid_no": 18, "title": 55, "org_name": 28,
+              "금액(억원)": 12, "close_date": 20, "bid_type": 8,
+              "source_label": 14, "detail_url": 10}
+    for c_idx, col in enumerate(ordered, start=1):
+        ws.column_dimensions[get_column_letter(c_idx)].width = widths.get(col, 14)
+
+    ws.freeze_panes = "A2"  # 첫 행 고정
+    ws.auto_filter.ref = ws.dimensions
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
 def humanize_since(dt: datetime) -> str:
     delta = datetime.now() - dt
     if delta.total_seconds() < 60:
@@ -1199,7 +1288,27 @@ def main() -> None:
     rows = keyword_filter.apply_filters(rows, filter_cfg)
 
     df = rows_to_dataframe(rows)
-    st.write(f"**검색 결과: {len(df):,}건**")
+
+    # 검색 결과 요약 + 엑셀 다운로드 버튼 한 줄 배치
+    _col_cnt, _col_dl = st.columns([5, 2])
+    with _col_cnt:
+        st.write(f"**검색 결과: {len(df):,}건**")
+    with _col_dl:
+        if len(df) > 0:
+            try:
+                xlsx_bytes = df_to_excel_bytes(df)
+                st.download_button(
+                    "엑셀 다운로드",
+                    data=xlsx_bytes,
+                    file_name=f"bids_{date.today().isoformat()}.xlsx",
+                    mime=("application/vnd.openxmlformats-officedocument"
+                          ".spreadsheetml.sheet"),
+                    width="stretch",
+                    key="excel_dl_btn",
+                    help="현재 필터가 적용된 검색 결과 전체를 엑셀로 저장",
+                )
+            except Exception as e:
+                st.caption(f"엑셀 변환 실패: {type(e).__name__}")
 
     if len(df) > 0:
         # NEW 배지: "N" 값에 연노랑 배경 + 검정 볼드 + 가운데 정렬.
