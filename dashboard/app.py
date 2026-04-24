@@ -1151,12 +1151,15 @@ def main() -> None:
     if len(df) > 0:
         # NEW 배지: "N" 값에 연노랑 배경 + 검정 볼드 + 가운데 정렬.
         # pandas Styler 는 st.dataframe 에서 CSS 로 렌더됨.
+        # pandas 2.1+ 는 Styler.map(), 이전 버전은 Styler.applymap() — 버전 호환.
         def _style_new(v):
             if v == "N":
                 return ("background-color: #FFF59D; color: #000000; "
                         "font-weight: 800; text-align: center;")
             return ""
-        styled = df.style.applymap(_style_new, subset=["신규"])
+        _styler = df.style
+        _apply = getattr(_styler, "map", None) or _styler.applymap
+        styled = _apply(_style_new, subset=["신규"])
 
         st.dataframe(
             styled,
