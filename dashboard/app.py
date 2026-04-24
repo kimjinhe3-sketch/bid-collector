@@ -87,21 +87,46 @@ SOURCE_LABELS = {
 
 CUSTOM_CSS = """
 <style>
-/* ─────────────── Anthropic/Claude-inspired design ─────────────── */
+/* ─────────────── Design spec (warm coral palette) ─────────────── */
 :root {
-  --bg: #faf9f5;          /* warm off-white */
-  --bg-soft: #f0eee6;     /* sidebar */
-  --card: #ffffff;
-  --fg: #3d3929;          /* warm dark brown */
-  --fg-muted: #8b867d;    /* muted warm gray */
-  --border: rgba(61, 57, 41, 0.10);
-  --border-strong: rgba(61, 57, 41, 0.20);
-  --accent: #c96442;      /* coral/orange (Claude) */
-  --accent-hover: #b85736;
-  --accent-soft: rgba(201, 100, 66, 0.10);
-  --danger: #b6442b;
-  --success: #7c8f52;
-  --radius-sm: 6px;
+  /* Primary action */
+  --color-primary: #D85A30;
+  --color-primary-hover: #993C1D;
+  --color-border: #D3D1C7;
+  /* Tags */
+  --tag-include-bg: #FAECE7;
+  --tag-include-text: #993C1D;
+  --tag-include-border: #F5C4B3;
+  --tag-exclude-bg: #F1EFE8;
+  --tag-exclude-text: #5F5E5A;
+  --tag-exclude-border: #D3D1C7;
+  /* Typography hierarchy */
+  --text-primary: #2C2C2A;    /* H1/H2 */
+  --text-heading: #444441;    /* H3 */
+  --text-body: #5F5E5A;       /* 본문 */
+  --text-muted: #888780;      /* 보조 */
+  /* Accent */
+  --link: #185FA5;
+  --accent-number: #D85A30;
+  /* Surfaces */
+  --bg-page: #FAF9F5;
+  --bg-surface: #FFFFFF;
+  --bg-sidebar: #F1EFE8;
+  --border-line: #D3D1C7;
+  /* Legacy aliases (기존 코드 호환) */
+  --bg: #FAF9F5;
+  --bg-soft: #F1EFE8;
+  --card: #FFFFFF;
+  --fg: #2C2C2A;
+  --fg-muted: #888780;
+  --border: #D3D1C7;
+  --border-strong: #B8B5AC;
+  --accent: #D85A30;
+  --accent-hover: #993C1D;
+  --accent-soft: #FAECE7;
+  --danger: #993C1D;
+  --success: #7C8F52;
+  --radius-sm: 8px;
   --radius: 10px;
   --radius-lg: 14px;
 }
@@ -141,15 +166,21 @@ span[class*="material-icons"], span[class*="material-symbols"],
   letter-spacing: normal !important;
 }
 
-/* Headers use serif like Claude.ai */
-h1, h2, h3, h4, .brand-title {
-  font-family: "Noto Serif KR", "Tiempos Headline", Georgia,
-               "Pretendard Variable", Pretendard, serif !important;
-  font-weight: 500 !important;
-  letter-spacing: -0.01em !important;
-  color: var(--fg) !important;
+/* Typography hierarchy per design spec */
+h1, h2, .brand-title {
+  color: var(--text-primary) !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.015em !important;
 }
-h3 { font-size: 1.1rem !important; margin: 1.2rem 0 0.5rem 0 !important; }
+h3 {
+  color: var(--text-heading) !important;
+  font-size: 1.05rem !important;
+  font-weight: 600 !important;
+  margin: 1.2rem 0 0.5rem 0 !important;
+  letter-spacing: -0.01em !important;
+}
+p, .stMarkdown, body { color: var(--text-body); }
+.section-hint, [data-testid="stCaptionContainer"] { color: var(--text-muted) !important; }
 
 /* ─── Brand bar ─── */
 .brand-bar {
@@ -169,13 +200,21 @@ h3 { font-size: 1.1rem !important; margin: 1.2rem 0 0.5rem 0 !important; }
   margin: -0.3rem 0 0.75rem 0;
 }
 
-/* ─── Keyword chips (warm palette) ─── */
+/* ─── Tag chips (warm coral spec) ─── */
 .kw-chip {
   display: inline-block; padding: 3px 10px; margin: 3px 4px 3px 0;
-  background: var(--accent-soft); color: var(--accent);
-  border-radius: 999px; font-size: 0.76rem; font-weight: 500;
+  background: var(--tag-include-bg);
+  color: var(--tag-include-text);
+  border: 1px solid var(--tag-include-border);
+  border-radius: 999px;
+  font-size: 0.78rem; font-weight: 500;
+  line-height: 1.5;
 }
-.kw-chip.ex { background: rgba(139, 134, 125, 0.15); color: var(--fg-muted); }
+.kw-chip.ex {
+  background: var(--tag-exclude-bg);
+  color: var(--tag-exclude-text);
+  border: 1px solid var(--tag-exclude-border);
+}
 
 /* ─── Empty state ─── */
 .empty-state {
@@ -263,13 +302,26 @@ h3 { font-size: 1.1rem !important; margin: 1.2rem 0 0.5rem 0 !important; }
 /* ─── Checkboxes ─── */
 [data-testid="stCheckbox"] label { font-size: 0.9rem; font-weight: 500; }
 
-/* ─── Dataframe ─── */
+/* ─── Dataframe (spec colors) ─── */
 [data-testid="stDataFrame"] {
   border-radius: var(--radius) !important;
   overflow: hidden;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-line);
+  background: var(--bg-surface);
 }
-[data-testid="stDataFrame"] a { text-decoration: none; color: var(--accent); }
+/* "열기" 링크 — 파랑 유지로 클릭 가능 신호 */
+[data-testid="stDataFrame"] a {
+  text-decoration: none;
+  color: var(--link) !important;
+  font-weight: 500;
+}
+/* 금액(숫자) 강조 — 정수 컬럼 오른쪽 정렬 셀 */
+[data-testid="stDataFrame"] [role="cell"][data-testid*="Number"],
+[data-testid="stDataFrame"] [data-col-index] [style*="text-align: right"] {
+  color: var(--accent-number) !important;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
 
 /* ─── Slider ─── */
 .stSlider [role="slider"] { background: var(--accent) !important; }
