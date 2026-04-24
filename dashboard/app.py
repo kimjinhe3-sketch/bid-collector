@@ -476,10 +476,11 @@ def _parse_open_date(s):
         return None
 
 
-def _this_week_monday(today=None):
-    """이번 주 월요일 00:00 (이후 공고에 NEW 배지)."""
+def _is_new_today(open_date_str, today=None):
+    """open_date 가 오늘(수집 기준일) 인 공고면 True."""
     today = today or date.today()
-    return today - timedelta(days=today.weekday())
+    d = _parse_open_date(open_date_str)
+    return d is not None and d == today
 
 
 def _to_eok(price):
@@ -509,13 +510,12 @@ def rows_to_dataframe(rows: list[dict]) -> pd.DataFrame:
             _fix_kepco_url(_fix_alio_url(u, t))
             for u, t in zip(df["detail_url"], df["title"])
         ]
-    # "신규" 배지 — 이번 주 월요일 이후 open_date 공고
-    monday = _this_week_monday()
+    # "신규" 배지 — 오늘 올라온 공고만 "N"
+    today = date.today()
     if "open_date" in df.columns:
-        def _is_new(s):
-            d = _parse_open_date(s)
-            return "NEW" if (d is not None and d >= monday) else ""
-        df["신규"] = df["open_date"].apply(_is_new)
+        df["신규"] = df["open_date"].apply(
+            lambda s: "N" if _is_new_today(s, today) else ""
+        )
     else:
         df["신규"] = ""
     return df[[c for c in cols if c in df.columns]]
@@ -1096,7 +1096,7 @@ def main() -> None:
             column_config={
                 "신규": st.column_config.TextColumn("신규",
                                                    width="small",
-                                                   help="이번 주 월요일 이후 올라온 공고"),
+                                                   help="오늘 올라온 공고 ('N')"),
                 "bid_no": st.column_config.TextColumn("공고번호", width="small"),
                 "title": st.column_config.TextColumn("제목", width="large"),
                 "org_name": st.column_config.TextColumn("기관", width="medium"),

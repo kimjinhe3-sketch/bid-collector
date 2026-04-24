@@ -29,21 +29,20 @@ def test_rows_to_dataframe_empty():
     assert "신규" in df.columns
 
 
-def test_rows_to_dataframe_new_badge():
+def test_rows_to_dataframe_new_badge_today_only():
     from datetime import date, timedelta
     today = date.today()
-    monday = today - timedelta(days=today.weekday())
-    recent = monday.strftime("%Y-%m-%d")          # 이번 주 월요일
-    last_week = (monday - timedelta(days=3)).strftime("%Y-%m-%d")  # 지난 주
+    today_str = today.strftime("%Y-%m-%d")
+    yesterday_str = (today - timedelta(days=1)).strftime("%Y-%m-%d")
     rows = [
-        {**_row(1), "open_date": recent},
-        {**_row(2), "open_date": last_week},
+        {**_row(1), "open_date": today_str + " 10:00"},
+        {**_row(2), "open_date": yesterday_str},
         {**_row(3), "open_date": None},
     ]
     df = dashboard.rows_to_dataframe(rows)
     vals = list(df["신규"])
-    assert vals[0] == "NEW"   # 이번 주 월요일 → NEW
-    assert vals[1] == ""      # 지난 주 → 공란
+    assert vals[0] == "N"     # 오늘 → N
+    assert vals[1] == ""      # 어제 → 공란
     assert vals[2] == ""      # 파싱 실패 → 공란
 
 
