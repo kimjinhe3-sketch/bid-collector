@@ -358,7 +358,7 @@ p, .stMarkdown, body { color: var(--text-body); }
   background: var(--bg-soft) !important;
   border: 1px solid var(--border-line) !important;
   border-bottom: none !important;
-  border-radius: 10px 10px 0 0 !important;
+  border-radius: 0 !important;   /* 직사각형 */
   padding: 6px 14px !important;
   margin-bottom: 0 !important;
   min-height: 42px;
@@ -378,8 +378,7 @@ p, .stMarkdown, body { color: var(--text-body); }
   margin-top: 0 !important;
 }
 .st-key-bidtable_titlebar + [data-testid="stElementContainer"] [data-testid="stDataFrame"] {
-  border-top-left-radius: 0 !important;
-  border-top-right-radius: 0 !important;
+  border-radius: 0 !important;   /* 표 전체 직사각형 */
   margin-top: 0 !important;
 }
 
