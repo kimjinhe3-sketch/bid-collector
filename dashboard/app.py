@@ -815,6 +815,10 @@ def main() -> None:
     for _k, _v in {**_filter_defaults, **_misc_defaults}.items():
         st.session_state.setdefault(_k, _v)
 
+    # ── Tabs: 입찰 공고 / 인허가 현황 ──
+    tab_bid, tab_permit = st.tabs(["입찰 공고", "인허가 현황"])
+    _tab_ctx = tab_bid.__enter__()
+
     # ── Section 1: 상단 그룹 필터 체크박스 (중복 선택 가능) ──
     st.markdown("### 오늘의 수집 현황")
     today_counts = load_counts(str(db_path), today.isoformat())
@@ -884,7 +888,7 @@ def main() -> None:
         st.text_input("공고명 검색 (제목에만 적용)",
                       key="f_keyword_input", placeholder="예: 전기공사")
         st.text_input("기관명 검색",
-                      key="f_org_query_input", placeholder="예: 한국수력원자력")
+                      key="f_org_query_input", placeholder="예: 교육청")
 
         st.markdown("**공고명 포함 키워드** (제목 기준, 하나라도 있으면 통과)")
         st.text_area("include_keywords", key="f_include_text_input", height=70,
@@ -1130,7 +1134,100 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
+    # ── 입찰 공고 탭 종료, 인허가 현황 탭 시작 ──
+    tab_bid.__exit__(None, None, None)
+
+    with tab_permit:
+        st.markdown("### 인허가 현황")
+        st.markdown(
+            "<div class='section-hint'>"
+            "시공사 선정 <b>이전 단계</b>의 공고(설계·타당성·기본계획·인허가 관련)를 "
+            "모아 사전 영업 리드로 활용합니다. 국토부 건축인허가 API 연결 시 실제 허가 정보로 확장 예정."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        # 사전 용역 키워드 — 시공 전 단계
+        PERMIT_LEAD_KEYWORDS = [
+            "설계", "기본계획", "기본구상", "실시설계", "기본설계",
+            "타당성", "기획", "마스터플랜", "사업계획",
+            "인허가", "건축심의", "도시계획", "환경영향평가", "교통영향평가",
+            "감리", "검토", "자문",
+        ]
+
+        # 재조회 — 소스 필터/업종 필터는 무시하고 모든 DB rows 에서 키워드 필터
+        all_rows = load_rows(
+            str(db_path), None,
+            tuple(),            # bid_types 비움 (공사/용역/기타 모두)
+            "",                 # keyword 비움
+            row_limit,
+            org_name=org_v or None,
+            sources=(),         # 전체 소스
+        )
+
+        # 제목에 사전 용역 키워드가 하나라도 있는 row만
+        def _is_lead(title: str) -> bool:
+            t = (title or "").lower()
+            return any(kw.lower() in t for kw in PERMIT_LEAD_KEYWORDS)
+
+        lead_rows = [r for r in all_rows if _is_lead(r.get("title") or "")]
+
+        # 공고일 범위 필터 (입찰 탭과 동일)
+        if d_start or d_end:
+            lead_rows = [r for r in lead_rows
+                         if _in_date_range(r)]
+
+        # 금액 범위
+        lead_rows = keyword_filter.apply_filters(lead_rows, {
+            "min_amount_eok": min_eok, "max_amount_eok": max_eok,
+        })
+
+        df_lead = rows_to_dataframe(lead_rows)
+        st.write(f"**사전 용역 공고: {len(df_lead):,}건**")
+
+        if len(df_lead) > 0:
+            st.dataframe(
+                df_lead,
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "신규": st.column_config.TextColumn("신규", width="small"),
+                    "bid_no": st.column_config.TextColumn("공고번호", width="small"),
+                    "title": st.column_config.TextColumn("제목", width="large"),
+                    "org_name": st.column_config.TextColumn("기관", width="medium"),
+                    "금액(억원)": st.column_config.NumberColumn(
+                        "금액(억원)", format="%.2f", width="small",
+                    ),
+                    "close_date": st.column_config.TextColumn("마감", width="small"),
+                    "bid_type": st.column_config.TextColumn("업종", width="small"),
+                    "source_label": st.column_config.TextColumn("출처", width="small"),
+                    "detail_url": st.column_config.LinkColumn(
+                        "상세보기", display_text="🔗 열기", width="small"
+                    ),
+                },
+            )
+        else:
+            st.markdown(
+                "<div class='empty-state'>"
+                "사전 용역 공고가 없습니다.<br>"
+                "<small>'지금 수집'으로 데이터를 먼저 가져오세요.</small>"
+                "</div>",
+                unsafe_allow_html=True,
+            )
+
+        with st.expander("국토부 건축인허가 API 연결 안내"):
+            st.markdown("""
+**건축물 허가/착공/준공 데이터를 실제로 받으려면:**
+
+1. https://www.data.go.kr/data/15058747/openapi.do 접속
+2. **활용신청** 클릭 → 승인 대기 (보통 1일 내)
+3. 승인 후 Secrets에 `BUILDING_PERMIT_KEY = "..."` 추가
+4. 이 탭이 자동으로 실제 인허가 데이터로 교체됨 (기능 개발 예정)
+
+**수집 가능한 정보**: 대지위치, 건축주, 연면적, 층수, 용도, 허가일, 착공일
+""")
 
 
 if __name__ == "__main__":
     main()
+
