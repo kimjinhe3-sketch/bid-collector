@@ -844,12 +844,19 @@ def main() -> None:
                         on_click=_clear_all_groups,
                         help="모두 해제 (= 전체 표시)")
 
-    # 체크된 그룹들의 소스 유니언 → source_filter (전부 체크/해제면 전체)
+    # 체크된 그룹들의 소스 유니언 → source_filter
+    # - 전부 체크 (= 전체 버튼) : 전체 표시
+    # - 아무것도 체크 안됨     : 0건 (__NONE__ 이라는 존재하지 않는 소스로 필터)
+    # - 부분 체크              : 해당 그룹만
     _checked = [g for g in SOURCE_GROUPS
                 if st.session_state.get(f"mcard_{g}", False)]
-    if not _checked or set(_checked) == set(SOURCE_GROUPS.keys()):
+    if set(_checked) == set(SOURCE_GROUPS.keys()):
         st.session_state["source_filter"] = []
         current_sources = []
+    elif not _checked:
+        # 존재하지 않는 source 값을 넣어 DB WHERE 절에서 0건 보장
+        st.session_state["source_filter"] = ["__NONE__"]
+        current_sources = ["__NONE__"]
     else:
         srcs = []
         for g in _checked:
@@ -875,7 +882,7 @@ def main() -> None:
         # 필터 위젯: 모두 key=로 session_state 자동 바인드 → 입력 변경 시 즉시 반영
         st.multiselect("업종", bid_type_options, key="f_bid_types_input")
         st.text_input("공고명 검색 (제목에만 적용)",
-                      key="f_keyword_input", placeholder="예: 데이터")
+                      key="f_keyword_input", placeholder="예: 전기공사")
         st.text_input("기관명 검색",
                       key="f_org_query_input", placeholder="예: 한국수력원자력")
 
@@ -1111,8 +1118,10 @@ def main() -> None:
             hint.append(f"공고명 검색 '{keyword_v}' 제외해보세요")
         if org_v:
             hint.append(f"기관명 검색 '{org_v}' 제외해보세요")
-        if current_sources:
-            hint.append("'전체' 카드를 클릭해 소스 필터를 해제해보세요")
+        if current_sources == ["__NONE__"]:
+            hint.append("상단 체크박스를 선택하거나 '전체' 버튼을 누르세요")
+        elif current_sources:
+            hint.append("상단 다른 그룹도 체크하거나 '전체' 버튼을 눌러보세요")
         st.markdown(
             f"""<div class='empty-state'>
                조건에 해당하는 공고가 없습니다.<br>
