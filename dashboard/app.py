@@ -1170,93 +1170,190 @@ def main() -> None:
     tab_bid.__exit__(None, None, None)
 
     with tab_permit:
+        from collectors import permit_api
+        from dashboard.permit_regions import REGION_PRESETS
+
         st.markdown("### 인허가 현황")
         st.markdown(
             "<div class='section-hint'>"
-            "시공사 선정 <b>이전 단계</b>의 공고(설계·타당성·기본계획·인허가 관련)를 "
-            "모아 사전 영업 리드로 활용합니다. 국토부 건축인허가 API 연결 시 실제 허가 정보로 확장 예정."
+            "국토부 <b>건축HUB 건축인허가정보</b>(ArchPmsHubService)에서 선택한 지역의 "
+            "허가·착공·사용승인 실제 데이터를 조회합니다. "
+            "<br><small>※ 시군구·법정동 단위 조회 (전국 일괄 조회는 지원 안 됨)</small>"
             "</div>",
             unsafe_allow_html=True,
         )
 
-        # 사전 용역 키워드 — 시공 전 단계
-        PERMIT_LEAD_KEYWORDS = [
-            "설계", "기본계획", "기본구상", "실시설계", "기본설계",
-            "타당성", "기획", "마스터플랜", "사업계획",
-            "인허가", "건축심의", "도시계획", "환경영향평가", "교통영향평가",
-            "감리", "검토", "자문",
-        ]
+        permit_key = get_secret("PERMIT_API_KEY") or get_secret("BUILDING_PERMIT_KEY")
+        if not permit_key:
+            st.warning(
+                "PERMIT_API_KEY 가 설정되지 않았습니다. "
+                "Streamlit Cloud Secrets 또는 `.env`에 다음을 추가하세요:\n\n"
+                "`PERMIT_API_KEY = \"여기에 data.go.kr 건축인허가 일반 인증키\"`"
+            )
+            st.caption(
+                "발급: https://www.data.go.kr/data/15134735/openapi.do → 활용신청 → 승인"
+            )
+            return  # 인허가 탭만 여기서 종료 (전체 페이지 유지)
 
-        # 재조회 — 소스 필터/업종 필터는 무시하고 모든 DB rows 에서 키워드 필터
-        all_rows = load_rows(
-            str(db_path), None,
-            tuple(),            # bid_types 비움 (공사/용역/기타 모두)
-            "",                 # keyword 비움
-            row_limit,
-            org_name=org_v or None,
-            sources=(),         # 전체 소스
+        # ── 조회 입력 ──
+        preset_labels = ["(직접 입력)"] + [p[0] for p in REGION_PRESETS]
+        sel_idx = st.selectbox(
+            "지역 선택",
+            options=list(range(len(preset_labels))),
+            format_func=lambda i: preset_labels[i],
+            index=1,  # 기본: 서울 강남구 역삼동
+            key="permit_region_idx",
+            help="자주 조회하는 지역은 프리셋에서 선택, 그 외는 직접 입력",
         )
+        use_custom = (sel_idx == 0)
 
-        # 제목에 사전 용역 키워드가 하나라도 있는 row만
-        def _is_lead(title: str) -> bool:
-            t = (title or "").lower()
-            return any(kw.lower() in t for kw in PERMIT_LEAD_KEYWORDS)
-
-        lead_rows = [r for r in all_rows if _is_lead(r.get("title") or "")]
-
-        # 공고일 범위 필터 (입찰 탭과 동일)
-        if d_start or d_end:
-            lead_rows = [r for r in lead_rows
-                         if _in_date_range(r)]
-
-        # 금액 범위
-        lead_rows = keyword_filter.apply_filters(lead_rows, {
-            "min_amount_eok": min_eok, "max_amount_eok": max_eok,
-        })
-
-        df_lead = rows_to_dataframe(lead_rows)
-        st.write(f"**사전 용역 공고: {len(df_lead):,}건**")
-
-        if len(df_lead) > 0:
-            st.dataframe(
-                df_lead,
-                width="stretch",
-                hide_index=True,
-                column_config={
-                    "신규": st.column_config.TextColumn("신규", width="small"),
-                    "bid_no": st.column_config.TextColumn("공고번호", width="small"),
-                    "title": st.column_config.TextColumn("제목", width="large"),
-                    "org_name": st.column_config.TextColumn("기관", width="medium"),
-                    "금액(억원)": st.column_config.NumberColumn(
-                        "금액(억원)", format="%.2f", width="small",
-                    ),
-                    "close_date": st.column_config.TextColumn("마감", width="small"),
-                    "bid_type": st.column_config.TextColumn("업종", width="small"),
-                    "source_label": st.column_config.TextColumn("출처", width="small"),
-                    "detail_url": st.column_config.LinkColumn(
-                        "상세보기", display_text="🔗 열기", width="small"
-                    ),
-                },
-            )
+        if not use_custom:
+            # 프리셋 선택 → 코드 자동 결정 (직접 입력 안 받음)
+            sigungu_cd, bjdong_cd = REGION_PRESETS[sel_idx - 1][1:]
+            col_c1, col_c2 = st.columns(2)
+            with col_c1:
+                st.text_input("시군구 코드 (sigunguCd)",
+                              value=sigungu_cd, disabled=True)
+            with col_c2:
+                st.text_input("법정동 코드 (bjdongCd)",
+                              value=bjdong_cd, disabled=True)
         else:
-            st.markdown(
-                "<div class='empty-state'>"
-                "사전 용역 공고가 없습니다.<br>"
-                "<small>'지금 수집'으로 데이터를 먼저 가져오세요.</small>"
-                "</div>",
-                unsafe_allow_html=True,
+            col_c1, col_c2 = st.columns(2)
+            with col_c1:
+                sigungu_cd = st.text_input(
+                    "시군구 코드 (sigunguCd)", value="11680",
+                    key="permit_sigungu_cd",
+                    help="5자리 법정동 상위 코드 (예: 서울 강남구 = 11680)",
+                )
+            with col_c2:
+                bjdong_cd = st.text_input(
+                    "법정동 코드 (bjdongCd)", value="10100",
+                    key="permit_bjdong_cd",
+                    help="5자리 법정동 하위 코드 (예: 역삼동 = 10100)",
+                )
+
+        col_d1, col_d2, col_d3 = st.columns([2, 2, 2])
+        with col_d1:
+            p_start = st.date_input(
+                "허가일 시작 (선택)",
+                value=None,
+                key="permit_start_date",
+                help="비우면 제한 없음",
+            )
+        with col_d2:
+            p_end = st.date_input(
+                "허가일 종료 (선택)",
+                value=None,
+                key="permit_end_date",
+            )
+        with col_d3:
+            max_pages = st.number_input(
+                "최대 페이지 (100건/page)",
+                min_value=1, max_value=50, value=5,
+                key="permit_max_pages",
+                help="건수가 많은 지역은 늘리세요",
             )
 
-        with st.expander("국토부 건축인허가 API 연결 안내"):
+        go = st.button("인허가 조회", type="primary",
+                       width="stretch", key="permit_fetch_btn")
+
+        if go:
+            if not sigungu_cd or not bjdong_cd:
+                st.error("시군구·법정동 코드를 모두 입력하세요.")
+            else:
+                def _to_yyyymmdd(d):
+                    return d.strftime("%Y%m%d") if d else None
+                with st.spinner(f"국토부 건축HUB 조회 중… ({sigungu_cd}-{bjdong_cd})"):
+                    try:
+                        rows = permit_api.collect(
+                            service_key=permit_key,
+                            sigungu_cd=sigungu_cd.strip(),
+                            bjdong_cd=bjdong_cd.strip(),
+                            start_date=_to_yyyymmdd(p_start),
+                            end_date=_to_yyyymmdd(p_end),
+                            page_size=100,
+                            max_pages=int(max_pages),
+                            sleep_seconds=0.5,
+                        )
+                    except Exception as e:
+                        rows = []
+                        st.error(f"조회 실패: {type(e).__name__}: {e}")
+                st.session_state["_permit_rows"] = rows
+                st.session_state["_permit_query"] = {
+                    "sigungu": sigungu_cd, "bjdong": bjdong_cd,
+                    "label": (preset_labels[sel_idx]
+                              if not use_custom else f"{sigungu_cd}-{bjdong_cd}"),
+                }
+
+        rows = st.session_state.get("_permit_rows")
+        if rows is not None:
+            q = st.session_state.get("_permit_query") or {}
+            st.write(f"**{q.get('label','')} · 조회 결과: {len(rows):,}건**")
+            if not rows:
+                st.markdown(
+                    "<div class='empty-state'>"
+                    "조회 결과가 없습니다.<br>"
+                    "<small>날짜 범위를 넓히거나 다른 지역을 시도해보세요.</small>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                import pandas as pd
+                df_p = pd.DataFrame(rows)
+                # 표시용 컬럼 재배열 & 한글 헤더
+                display_cols = [
+                    "pms_day", "bld_nm", "plat_plc", "main_purps",
+                    "strct", "tot_area", "grnd_flr_cnt", "ugrnd_flr_cnt",
+                    "hhld_cnt", "stcns_day", "use_apr_day", "mgm_pk",
+                ]
+                df_p = df_p[[c for c in display_cols if c in df_p.columns]]
+                st.dataframe(
+                    df_p,
+                    width="stretch",
+                    hide_index=True,
+                    column_config={
+                        "pms_day": st.column_config.TextColumn("허가일", width="small"),
+                        "bld_nm": st.column_config.TextColumn("건물명", width="medium"),
+                        "plat_plc": st.column_config.TextColumn("대지위치", width="large"),
+                        "main_purps": st.column_config.TextColumn("주용도", width="small"),
+                        "strct": st.column_config.TextColumn("구조", width="small"),
+                        "tot_area": st.column_config.NumberColumn(
+                            "연면적(㎡)", format="%.1f", width="small",
+                        ),
+                        "grnd_flr_cnt": st.column_config.NumberColumn(
+                            "지상층", format="%d", width="small",
+                        ),
+                        "ugrnd_flr_cnt": st.column_config.NumberColumn(
+                            "지하층", format="%d", width="small",
+                        ),
+                        "hhld_cnt": st.column_config.NumberColumn(
+                            "세대수", format="%d", width="small",
+                        ),
+                        "stcns_day": st.column_config.TextColumn("착공일", width="small"),
+                        "use_apr_day": st.column_config.TextColumn("사용승인", width="small"),
+                        "mgm_pk": st.column_config.TextColumn("관리PK", width="small"),
+                    },
+                )
+                # 간단 요약
+                with st.expander("요약 통계"):
+                    def _sum(k): return sum(r.get(k) or 0 for r in rows)
+                    def _cnt(k): return sum(1 for r in rows if r.get(k))
+                    st.write({
+                        "총 연면적(㎡)": round(_sum("tot_area"), 1),
+                        "허가 건수": _cnt("pms_day"),
+                        "착공 건수": _cnt("stcns_day"),
+                        "사용승인 건수": _cnt("use_apr_day"),
+                    })
+
+        with st.expander("API 정보"):
             st.markdown("""
-**건축물 허가/착공/준공 데이터를 실제로 받으려면:**
+**사용 중인 API**: 국토부 건축HUB 건축인허가정보 서비스
+- 엔드포인트: `apis.data.go.kr/1613000/ArchPmsHubService/getApBasisOulnInfo`
+- 데이터셋: data.go.kr **15134735**
+- 필수 파라미터: `sigunguCd` (시군구), `bjdongCd` (법정동) — 전국 일괄 조회 불가
+- 제공 정보: 대지위치, 건물명, 주용도, 구조, 연면적, 층수, 세대수, 허가/착공/사용승인일
 
-1. https://www.data.go.kr/data/15058747/openapi.do 접속
-2. **활용신청** 클릭 → 승인 대기 (보통 1일 내)
-3. 승인 후 Secrets에 `BUILDING_PERMIT_KEY = "..."` 추가
-4. 이 탭이 자동으로 실제 인허가 데이터로 교체됨 (기능 개발 예정)
-
-**수집 가능한 정보**: 대지위치, 건축주, 연면적, 층수, 용도, 허가일, 착공일
+**시군구/법정동 코드 조회**: https://www.code.go.kr/stdcode/regCodeL.do
 """)
 
 
