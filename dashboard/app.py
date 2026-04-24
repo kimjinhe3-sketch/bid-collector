@@ -476,6 +476,12 @@ def _parse_open_date(s):
         return None
 
 
+def _this_week_monday(today=None):
+    """이번 주 월요일 00:00 (이후 공고에 NEW 배지)."""
+    today = today or date.today()
+    return today - timedelta(days=today.weekday())
+
+
 def _to_eok(price):
     """정수/실수 가격 → 억 단위 float, None/0/NaN → None (정렬 시 최하단으로)."""
     import math
@@ -489,22 +495,29 @@ def _to_eok(price):
 
 
 def rows_to_dataframe(rows: list[dict]) -> pd.DataFrame:
-    cols = ["bid_no", "title", "org_name", "금액(억원)", "close_date",
+    cols = ["신규", "bid_no", "title", "org_name", "금액(억원)", "close_date",
             "bid_type", "source_label", "detail_url"]
     if not rows:
         return pd.DataFrame(columns=cols)
     df = pd.DataFrame(rows)
     if "estimated_price" in df.columns:
-        # 숫자형 컬럼 — None은 NaN, 정렬 시 pandas 기본으로 최하단에 배치됨
         df["금액(억원)"] = df["estimated_price"].apply(_to_eok)
     if "source" in df.columns:
         df["source_label"] = df["source"].map(SOURCE_LABELS).fillna(df["source"])
-    # Rewrite stale URLs on the fly (safety net).
     if "detail_url" in df.columns and "title" in df.columns:
         df["detail_url"] = [
             _fix_kepco_url(_fix_alio_url(u, t))
             for u, t in zip(df["detail_url"], df["title"])
         ]
+    # "신규" 배지 — 이번 주 월요일 이후 open_date 공고
+    monday = _this_week_monday()
+    if "open_date" in df.columns:
+        def _is_new(s):
+            d = _parse_open_date(s)
+            return "NEW" if (d is not None and d >= monday) else ""
+        df["신규"] = df["open_date"].apply(_is_new)
+    else:
+        df["신규"] = ""
     return df[[c for c in cols if c in df.columns]]
 
 
@@ -535,11 +548,12 @@ def render_kw_chips(include: list[str], exclude: list[str]) -> str:
 # ────────────────────────────────────────────────────────────────
 
 def run_collect_action(config: dict, db_path: Path,
-                        log_callback=None) -> tuple[bool, str, list[str]]:
+                        log_callback=None,
+                        lookback_override: int | None = None) -> tuple[bool, str, list[str]]:
     """Run collection in parallel (ThreadPoolExecutor).
 
-    모든 소스를 **동시에** 호출하므로 가장 느린 소스의 시간만큼만 걸림
-    (기존 순차 ≒ 합계 → 병렬 ≒ max).
+    lookback_override 가 지정되면 config 의 lookback_days 대신 사용.
+    대시보드에서 사용자가 슬라이더로 즉석 지정 가능.
     """
     import time as _time
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -549,7 +563,8 @@ def run_collect_action(config: dict, db_path: Path,
 
     sleep = float(config.get("collection", {}).get("request_sleep_seconds", 0.5))
     page_size = int(config.get("collection", {}).get("page_size", 100))
-    lookback = int(config.get("collection", {}).get("lookback_days", 1))
+    lookback = int(lookback_override if lookback_override is not None
+                   else config.get("collection", {}).get("lookback_days", 1))
     sources = config.get("collection", {}).get("sources") or {}
 
     dbmod.init_db(db_path)
@@ -794,6 +809,8 @@ def main() -> None:
         "mcard_나라장터": False,
         "mcard_누리장터": False,
         "mcard_기타": False,
+        # 수집 범위 — 기본 7일
+        "f_collect_lookback_input": int(config.get("collection", {}).get("lookback_days", 7)),
     }
     for _k, _v in {**_filter_defaults, **_misc_defaults}.items():
         st.session_state.setdefault(_k, _v)
@@ -900,14 +917,23 @@ def main() -> None:
             invalidate_all_caches()
             st.rerun()
 
+        # 수집 범위 — 슬라이더로 사용자 지정 (기본 7일)
+        st.slider("수집 범위 (일)", min_value=1, max_value=30, value=7,
+                  key="f_collect_lookback_input",
+                  help="오늘 기준 과거 N일 동안 올라온 공고를 수집")
+
         # 수집하기 (아래) — 외부 API 호출
         if st.button("지금 수집", width="stretch", type="secondary",
                      key="collect_btn"):
-            with st.status("공고 수집 중… 약 1~2분 소요됩니다.", expanded=True) as status:
+            lookback_v = int(st.session_state.get("f_collect_lookback_input", 7))
+            with st.status(f"공고 수집 중 (최근 {lookback_v}일)… 약 1~2분 소요됩니다.",
+                           expanded=True) as status:
                 def _stream(msg: str):
                     st.write(msg)
-                ok, summary, _logs = run_collect_action(config, db_path,
-                                                         log_callback=_stream)
+                ok, summary, _logs = run_collect_action(
+                    config, db_path, log_callback=_stream,
+                    lookback_override=lookback_v,
+                )
                 status.update(label=summary,
                               state=("complete" if ok else "error"))
             if not ok:
@@ -1057,6 +1083,9 @@ def main() -> None:
             width="stretch",
             hide_index=True,
             column_config={
+                "신규": st.column_config.TextColumn("신규",
+                                                   width="small",
+                                                   help="이번 주 월요일 이후 올라온 공고"),
                 "bid_no": st.column_config.TextColumn("공고번호", width="small"),
                 "title": st.column_config.TextColumn("제목", width="large"),
                 "org_name": st.column_config.TextColumn("기관", width="medium"),

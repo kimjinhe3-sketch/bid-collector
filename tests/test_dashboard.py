@@ -26,6 +26,25 @@ def test_rows_to_dataframe_empty():
     assert len(df) == 0
     assert "금액(억원)" in df.columns
     assert "title" in df.columns
+    assert "신규" in df.columns
+
+
+def test_rows_to_dataframe_new_badge():
+    from datetime import date, timedelta
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+    recent = monday.strftime("%Y-%m-%d")          # 이번 주 월요일
+    last_week = (monday - timedelta(days=3)).strftime("%Y-%m-%d")  # 지난 주
+    rows = [
+        {**_row(1), "open_date": recent},
+        {**_row(2), "open_date": last_week},
+        {**_row(3), "open_date": None},
+    ]
+    df = dashboard.rows_to_dataframe(rows)
+    vals = list(df["신규"])
+    assert vals[0] == "NEW"   # 이번 주 월요일 → NEW
+    assert vals[1] == ""      # 지난 주 → 공란
+    assert vals[2] == ""      # 파싱 실패 → 공란
 
 
 def test_rows_to_dataframe_formats_amount_column():
