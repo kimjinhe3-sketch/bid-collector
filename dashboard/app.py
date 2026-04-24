@@ -203,10 +203,28 @@ h3 { font-size: 1.1rem !important; margin: 1.2rem 0 0.5rem 0 !important; }
   outline: none !important;
 }
 
-/* ─── Sidebar (warm soft) ─── */
+/* ─── Sidebar (warm soft) - 강제 표시 ─── */
 [data-testid="stSidebar"] {
   background: var(--bg-soft) !important;
   border-right: 1px solid var(--border);
+  min-width: 21rem !important;
+  max-width: 21rem !important;
+  transform: translateX(0) !important;
+  visibility: visible !important;
+  display: block !important;
+}
+/* 사이드바 접기/펼치기 버튼도 항상 표시 */
+[data-testid="collapsedControl"],
+[data-testid="stSidebarCollapseButton"] {
+  visibility: visible !important;
+  display: flex !important;
+}
+/* 모바일에서만 접힘 허용 (기본 Streamlit 동작) */
+@media (max-width: 640px) {
+  [data-testid="stSidebar"] {
+    min-width: 16rem !important;
+    max-width: 85vw !important;
+  }
 }
 [data-testid="stSidebar"] h3 {
   font-family: "Pretendard Variable", Pretendard, sans-serif !important;
