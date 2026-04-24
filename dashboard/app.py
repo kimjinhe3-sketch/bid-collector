@@ -353,37 +353,34 @@ p, .stMarkdown, body { color: var(--text-body); }
 /* ─── Checkboxes ─── */
 [data-testid="stCheckbox"] label { font-size: 0.9rem; font-weight: 500; }
 
-/* ─── 표 상단바 (건수 좌 + 엑셀 아이콘 우 · 표에 밀착) ─── */
-.tbl-topbar-count {
-  padding: 0;
-  margin: 0;
-  font-size: 0.9rem;
-  line-height: 28px;
+/* ─── 표 타이틀바 (윈도우 창 스타일 · 표에 일체화) ─── */
+.st-key-bidtable_titlebar {
+  background: var(--bg-soft) !important;
+  border: 1px solid var(--border-line) !important;
+  border-bottom: none !important;
+  border-radius: 10px 10px 0 0 !important;
+  padding: 6px 14px !important;
+  margin-bottom: 0 !important;
+  min-height: 42px;
+}
+.st-key-bidtable_titlebar .tbl-title {
+  font-size: 0.92rem;
   color: var(--fg);
+  line-height: 1.3;
 }
-.tbl-topbar-dl {
-  display: flex;
-  justify-content: flex-end;
-  padding: 0;
-  margin: 0;
-}
-/* 상단바 row 의 vertical 마진 완전 제거 + 다음 dataframe 을 위로 붙임 */
-[data-testid="stElementContainer"]:has(.tbl-topbar-dl),
-[data-testid="stElementContainer"]:has(.tbl-topbar-count),
-[data-testid="stHorizontalBlock"]:has(.tbl-topbar-dl) {
+/* 타이틀바 내부 모든 stElementContainer 의 여백 제거 */
+.st-key-bidtable_titlebar [data-testid="stElementContainer"] {
   margin: 0 !important;
   padding: 0 !important;
-  gap: 0 !important;
-  min-height: 30px !important;
 }
-[data-testid="stHorizontalBlock"]:has(.tbl-topbar-dl) + [data-testid="stElementContainer"],
-[data-testid="stHorizontalBlock"]:has(.tbl-topbar-dl) + div {
-  margin-top: -8px !important;
+/* 타이틀바 바로 뒤에 오는 dataframe 을 시각적으로 '연결' */
+.st-key-bidtable_titlebar + [data-testid="stElementContainer"] {
+  margin-top: 0 !important;
 }
-/* download_button 자체의 wrapper margin 도 0 */
-[data-testid="stElementContainer"]:has(> div > [data-testid="stDownloadButton"]) {
-  margin: 0 !important;
-  padding: 0 !important;
+.st-key-bidtable_titlebar + [data-testid="stElementContainer"] [data-testid="stDataFrame"] {
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+  margin-top: 0 !important;
 }
 
 /* ─── 엑셀 다운로드 아이콘 (우상단·작게·옅은 색) ─── */
@@ -1292,7 +1289,7 @@ def main() -> None:
         st.caption(f"DB: `{db_path.name}` · 최종 업데이트 {last_update}")
 
     # ── Section 2: 필터 적용된 목록 (live-reactive) ──
-    st.markdown("### 📋 공고 목록")
+    # 표 위에 '윈도우 타이틀바' 스타일 컨테이너: 좌측 카운트 + 우측 xlsx 아이콘
 
     # DB 전체 조회 (공고일 필터는 Python-side에서 적용, 소스별 날짜 포맷이 달라서)
     since_str = None
@@ -1342,19 +1339,23 @@ def main() -> None:
 
     df = rows_to_dataframe(rows)
 
-    # 표 바로 위 한 줄: 좌측 건수 / 우측 엑셀 다운로드 (표 우상단에 붙음)
-    _cnt_col, _dl_col = st.columns([5, 1])
-    _cnt_col.markdown(
-        f"<div class='tbl-topbar-count'>검색 결과: "
-        f"<b>{len(df):,}</b>건</div>",
-        unsafe_allow_html=True,
-    )
-    if len(df) > 0:
-        try:
-            xlsx_bytes = df_to_excel_bytes(df)
-            with _dl_col:
-                st.markdown('<div class="tbl-topbar-dl">',
-                            unsafe_allow_html=True)
+    # 타이틀바 — horizontal 컨테이너 (Streamlit 1.38+)
+    # 좌측: 📋 공고 리스트 + 검색 결과 카운트 / 우측: ⤓ xlsx
+    with st.container(
+        horizontal=True,
+        horizontal_alignment="distribute",
+        vertical_alignment="center",
+        gap=None,
+        key="bidtable_titlebar",
+    ):
+        st.markdown(
+            f"<div class='tbl-title'>📋 <b>입찰 공고 리스트</b> · "
+            f"검색 결과 <b>{len(df):,}</b>건</div>",
+            unsafe_allow_html=True,
+        )
+        if len(df) > 0:
+            try:
+                xlsx_bytes = df_to_excel_bytes(df)
                 st.download_button(
                     "⤓ xlsx",
                     data=xlsx_bytes,
@@ -1364,9 +1365,8 @@ def main() -> None:
                     key="excel_dl_btn",
                     help="현재 필터가 적용된 검색 결과를 엑셀로 저장",
                 )
-                st.markdown("</div>", unsafe_allow_html=True)
-        except Exception as e:
-            _dl_col.caption(f"xlsx 변환 실패: {type(e).__name__}")
+            except Exception as e:
+                st.caption(f"xlsx 변환 실패: {type(e).__name__}")
 
     if len(df) > 0:
         # NEW 배지: "N" 값에 연노랑 배경 + 검정 볼드 + 가운데 정렬.
