@@ -355,11 +355,10 @@ p, .stMarkdown, body { color: var(--text-body); }
 
 /* ─── 표 타이틀바 (윈도우 창 스타일 · 표에 일체화) ─── */
 .st-key-bidtable_titlebar {
-  background: var(--bg-soft) !important;
-  border: 1px solid var(--border-line) !important;
-  border-bottom: none !important;
-  border-radius: 0 !important;   /* 직사각형 */
-  padding: 6px 14px !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 6px 2px !important;
   margin-bottom: 0 !important;
   min-height: 42px;
 }
