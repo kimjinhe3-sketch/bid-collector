@@ -355,20 +355,35 @@ p, .stMarkdown, body { color: var(--text-body); }
 
 /* ─── 표 상단바 (건수 좌 + 엑셀 아이콘 우 · 표에 밀착) ─── */
 .tbl-topbar-count {
-  padding: 4px 2px 2px 2px;
+  padding: 0;
+  margin: 0;
   font-size: 0.9rem;
+  line-height: 28px;
   color: var(--fg);
 }
 .tbl-topbar-dl {
   display: flex;
   justify-content: flex-end;
   padding: 0;
-  margin-bottom: -6px;  /* 표와 간격 최소화 */
+  margin: 0;
 }
-/* 이 상단바와 직후 dataframe 사이 마진 제거 → '표에 붙은' 느낌 */
-:has(> .tbl-topbar-dl) + div [data-testid="stDataFrame"],
-:has(> .tbl-topbar-count) ~ div [data-testid="stDataFrame"] {
-  margin-top: 0 !important;
+/* 상단바 row 의 vertical 마진 완전 제거 + 다음 dataframe 을 위로 붙임 */
+[data-testid="stElementContainer"]:has(.tbl-topbar-dl),
+[data-testid="stElementContainer"]:has(.tbl-topbar-count),
+[data-testid="stHorizontalBlock"]:has(.tbl-topbar-dl) {
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  min-height: 30px !important;
+}
+[data-testid="stHorizontalBlock"]:has(.tbl-topbar-dl) + [data-testid="stElementContainer"],
+[data-testid="stHorizontalBlock"]:has(.tbl-topbar-dl) + div {
+  margin-top: -8px !important;
+}
+/* download_button 자체의 wrapper margin 도 0 */
+[data-testid="stElementContainer"]:has(> div > [data-testid="stDownloadButton"]) {
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 /* ─── 엑셀 다운로드 아이콘 (우상단·작게·옅은 색) ─── */
