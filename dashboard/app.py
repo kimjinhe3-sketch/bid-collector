@@ -37,6 +37,7 @@ from db import database
 from filters import keyword_filter
 from utils.config_loader import load_config
 from utils.secrets import get_secret
+from utils import recipients as recipients_mod
 
 
 EOK = 100_000_000
@@ -87,65 +88,172 @@ SOURCE_LABELS = {
 
 CUSTOM_CSS = """
 <style>
-/* Header brand bar */
+/* ─────────────── macOS-inspired design system ─────────────── */
+:root {
+  --bg: #f5f5f7;
+  --card: #ffffff;
+  --fg: #1d1d1f;
+  --fg-muted: #86868b;
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.14);
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+  --danger: #ff453a;
+  --success: #34c759;
+  --radius-sm: 8px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
+}
+
+html, body, [class^="st-"], [class*=" st-"],
+.stApp, .stMarkdown, button, input, textarea, select {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+               "SF Pro Text", "Pretendard Variable", Pretendard,
+               "Apple SD Gothic Neo", "Segoe UI", Roboto, sans-serif !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--fg);
+  letter-spacing: -0.005em;
+}
+
+.stApp { background: var(--bg) !important; }
+
+h1, h2, h3, h4 {
+  font-weight: 600 !important;
+  letter-spacing: -0.015em !important;
+  color: var(--fg);
+}
+h3 { font-size: 1.05rem !important; margin: 1rem 0 0.5rem 0 !important; }
+
+/* ─── Brand bar (macOS card style) ─── */
 .brand-bar {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 18px; border-radius: 12px;
-  background: linear-gradient(135deg, #1f6feb 0%, #0b4fbf 100%);
-  color: #fff; margin-bottom: 18px;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+  padding: 14px 18px;
+  background: rgba(255,255,255,0.8);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 18px;
+  box-shadow: var(--shadow-sm);
 }
 .brand-title {
-  font-size: 1.35rem; font-weight: 700; margin: 0;
-  display: flex; gap: 8px; align-items: center;
+  font-size: 1.15rem; font-weight: 600; margin: 0;
+  letter-spacing: -0.02em; color: var(--fg);
 }
-.brand-sub { font-size: 0.85rem; opacity: 0.9; }
+.brand-sub { font-size: 0.82rem; color: var(--fg-muted); }
 
-/* Metric cards */
-[data-testid="stMetric"] {
-  background: #ffffff; border: 1px solid #e5e9ef; border-radius: 10px;
-  padding: 12px 16px; transition: box-shadow 0.15s;
+/* ─── Section hints ─── */
+.section-hint {
+  color: var(--fg-muted); font-size: 0.82rem;
+  margin: -0.3rem 0 0.75rem 0;
 }
-[data-testid="stMetric"]:hover { box-shadow: 0 2px 8px rgba(15,23,42,0.08); }
 
-/* Section headers */
-h2, h3 { color: #1f2328; }
-.section-hint { color: #6b7280; font-size: 0.85rem; margin-top: -6px; margin-bottom: 10px; }
-
-/* Filter caption chips */
+/* ─── Keyword chips ─── */
 .kw-chip {
-  display: inline-block; padding: 2px 8px; margin: 2px 4px 2px 0;
-  background: #eef3ff; color: #1f6feb; border-radius: 999px; font-size: 0.78rem;
+  display: inline-block; padding: 3px 10px; margin: 3px 4px 3px 0;
+  background: rgba(0,113,227,0.1); color: var(--accent);
+  border-radius: 999px; font-size: 0.76rem; font-weight: 500;
 }
-.kw-chip.ex { background: #fef2f2; color: #b91c1c; }
+.kw-chip.ex { background: rgba(255,69,58,0.1); color: var(--danger); }
 
-/* Table title — data-editor links feel more native */
-[data-testid="stDataFrame"] a { text-decoration: none; }
-
-/* Empty state */
+/* ─── Empty state ─── */
 .empty-state {
-  text-align: center; padding: 40px 20px; background: #f6f8fa;
-  border-radius: 10px; color: #6b7280; border: 1px dashed #d1d5db;
+  text-align: center; padding: 44px 20px;
+  background: var(--card); border: 1px dashed var(--border-strong);
+  border-radius: var(--radius); color: var(--fg-muted);
 }
 
-/* ─── Mobile (≤ 768px) responsive tweaks ─── */
-@media (max-width: 768px) {
-  .brand-bar { flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px; }
-  .brand-title { font-size: 1.1rem; }
-  [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
-  [data-testid="stMetric"] { padding: 10px 12px; min-width: 44%; }
-  [data-testid="stMetricValue"] { font-size: 1.2rem !important; }
-  [data-testid="stMetricLabel"] { font-size: 0.75rem !important; }
-  /* Hide the "DB 전체" secondary caption on small screens */
-  .desktop-only { display: none; }
-  /* Make dataframe horizontally scrollable but compact */
-  [data-testid="stDataFrame"] { font-size: 0.82rem; }
-  .block-container { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+/* ─── Buttons (macOS vibrant) ─── */
+.stButton > button {
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--card) !important;
+  color: var(--fg) !important;
+  font-weight: 500 !important;
+  font-size: 0.88rem !important;
+  padding: 0.35rem 0.9rem !important;
+  transition: all 0.12s ease !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+.stButton > button:hover {
+  border-color: var(--border-strong) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08) !important;
+}
+.stButton > button[kind="primary"] {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border: none !important;
+}
+.stButton > button[kind="primary"]:hover {
+  background: var(--accent-hover) !important;
+}
+.stDownloadButton > button { border-radius: var(--radius-sm) !important; }
+
+/* ─── Inputs ─── */
+.stTextInput input, .stTextArea textarea,
+.stDateInput input, .stNumberInput input,
+.stSelectbox > div > div, .stMultiSelect > div > div {
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--card) !important;
+  font-size: 0.88rem !important;
+  color: var(--fg) !important;
+  transition: border-color 0.12s, box-shadow 0.12s !important;
+}
+.stTextInput input:focus, .stTextArea textarea:focus,
+.stDateInput input:focus, .stNumberInput input:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(0,113,227,0.15) !important;
+  outline: none !important;
 }
 
-/* Hide "Made with Streamlit" footer */
+/* ─── Sidebar (frosted) ─── */
+[data-testid="stSidebar"] {
+  background: rgba(246,246,248,0.75) !important;
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-right: 1px solid var(--border);
+}
+[data-testid="stSidebar"] h3 { font-size: 0.95rem !important; color: var(--fg-muted) !important;
+                                text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600 !important; }
+
+/* ─── Checkboxes (larger + aligned) ─── */
+[data-testid="stCheckbox"] label {
+  font-size: 0.9rem; font-weight: 500;
+}
+
+/* ─── Dataframe (rounded, bordered) ─── */
+[data-testid="stDataFrame"] {
+  border-radius: var(--radius) !important;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+[data-testid="stDataFrame"] a { text-decoration: none; color: var(--accent); }
+
+/* ─── Slider / status ─── */
+.stSlider [role="slider"] { background: var(--accent) !important; }
+[data-testid="stStatus"] { border-radius: var(--radius) !important; }
+
+/* ─── Hide Streamlit chrome ─── */
 footer { visibility: hidden; }
 #MainMenu { visibility: hidden; }
+[data-testid="stToolbar"] { display: none; }
+header { visibility: hidden; height: 0 !important; }
+
+/* ─── Mobile (≤ 768px) ─── */
+@media (max-width: 768px) {
+  .brand-bar { flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px; }
+  .brand-title { font-size: 1.0rem; }
+  [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
+  .desktop-only { display: none; }
+  [data-testid="stDataFrame"] { font-size: 0.82rem; }
+  .block-container { padding-top: 0.8rem !important; padding-bottom: 0.8rem !important; }
+}
 </style>
 """
 
@@ -449,11 +557,17 @@ def run_notify_action(config: dict, db_path: Path, dry_run: bool = True) -> tupl
         return len(filtered), f"미리보기: {len(filtered):,}건이 알림 대상입니다. (전송은 하지 않음)"
 
     channels = (config.get("notifier") or {}).get("channels") or []
+    # 수신자: config + data/recipients.json 병합
+    notifier_cfg = dict(config.get("notifier") or {})
+    email_cfg = dict(notifier_cfg.get("email") or {})
+    email_cfg["to_addrs"] = recipients_mod.resolve_to_addrs(config)
+    notifier_cfg["email"] = email_cfg
+
     sent = False
     if "email" in channels:
-        sent = email_notifier.send_email(filtered, config.get("notifier") or {}) or sent
+        sent = email_notifier.send_email(filtered, notifier_cfg) or sent
     if "slack" in channels:
-        sent = slack_notifier.send_slack(filtered, config.get("notifier") or {}) or sent
+        sent = slack_notifier.send_slack(filtered, notifier_cfg) or sent
     if sent:
         dbmod.mark_notified(db_path, [r["id"] for r in filtered])
         invalidate_all_caches()
@@ -499,7 +613,7 @@ def main() -> None:
         f"""
         <div class="brand-bar">
           <div>
-            <div class="brand-title">📋 국내 입찰공고 현황</div>
+            <div class="brand-title">국내 입찰공고 현황</div>
             <div class="brand-sub">마지막 수집: <b>{last_update}</b></div>
           </div>
           <div class="brand-sub">공공데이터포털 · ALIO · K-apt</div>
@@ -511,7 +625,7 @@ def main() -> None:
     # ── First-run guard ────────────────────────────────────
     if not db_path.exists():
         st.info("아직 수집된 데이터가 없습니다. 아래 버튼을 눌러 수집을 시작하세요.")
-        if st.button("🚀 지금 수집", type="primary", use_container_width=True):
+        if st.button("지금 수집", type="primary", use_container_width=True):
             with st.status("공고 수집 중… 약 1~2분 소요됩니다.", expanded=True) as status:
                 def _stream(msg: str):
                     st.write(msg)
@@ -558,7 +672,7 @@ def main() -> None:
         st.session_state.setdefault(_k, _v)
 
     # ── Section 1: 상단 그룹 필터 체크박스 (중복 선택 가능) ──
-    st.markdown("### 📊 오늘의 수집 현황")
+    st.markdown("### 오늘의 수집 현황")
     today_counts = load_counts(str(db_path), today.isoformat())
     total_counts = load_counts(str(db_path), None)
 
@@ -612,7 +726,7 @@ def main() -> None:
 
     # ── Sidebar (live-reactive 필터) ────────────────────────
     with st.sidebar:
-        st.markdown("### 🎛️ 필터")
+        st.markdown("### 필터")
 
         # 필터 위젯: 모두 key=로 session_state 자동 바인드 → 입력 변경 시 즉시 반영
         st.multiselect("업종", bid_type_options, key="f_bid_types_input")
@@ -642,25 +756,25 @@ def main() -> None:
                 st.session_state[_k] = _v
             invalidate_all_caches()
 
-        st.button("↩️ 필터 기본값", width="stretch", key="reset_filters",
+        st.button("기본값 복원", width="stretch", key="reset_filters",
                   on_click=_reset_filters_cb,
                   help="모든 필터 입력을 config.yaml의 기본값으로 복원 (체크박스는 유지)")
 
         st.markdown("---")
-        st.markdown("### ⚙️ 작업")
+        st.markdown("### 작업")
 
         # 공고일 범위 (조회하기 바로 위)
         st.date_input("공고일 범위", key="f_date_range_input",
                       help="선택한 공고 발행일 범위 안의 공고만 표시")
 
         # 조회하기 — 캐시 비우고 재조회 (현재 필터 즉시 재평가)
-        if st.button("🔍 조회하기", width="stretch", type="primary",
+        if st.button("조회하기", width="stretch", type="primary",
                      key="refetch_btn"):
             invalidate_all_caches()
             st.rerun()
 
         # 수집하기 (아래) — 외부 API 호출
-        if st.button("🚀 지금 수집", width="stretch", type="secondary",
+        if st.button("지금 수집", width="stretch", type="secondary",
                      key="collect_btn"):
             with st.status("공고 수집 중… 약 1~2분 소요됩니다.", expanded=True) as status:
                 def _stream(msg: str):
@@ -673,9 +787,88 @@ def main() -> None:
                 st.error("일부 소스 수집 실패. 위 로그를 확인하세요.")
             st.rerun()
 
-        if st.button("📧 알림 미리보기 (dry-run)", width="stretch"):
+        if st.button("알림 미리보기 (dry-run)", width="stretch"):
             count, msg = run_notify_action(config, db_path, dry_run=True)
             st.success(msg) if count else st.info(msg)
+
+        # ── 메일링 수신자 관리 ──
+        st.markdown("---")
+        st.markdown("### 메일링")
+        with st.expander("수신자 관리", expanded=False):
+            current_recipients = recipients_mod.load()
+            cfg_recipients = ((config.get("notifier") or {}).get("email", {})
+                              .get("to_addrs") or [])
+            all_recipients = recipients_mod.resolve_to_addrs(config)
+
+            if all_recipients:
+                st.caption(f"현재 수신자 {len(all_recipients)}명")
+                for email in all_recipients:
+                    is_removable = email in current_recipients
+                    c1, c2 = st.columns([5, 1])
+                    with c1:
+                        tag = "" if is_removable else " · config"
+                        st.markdown(f"<div style='font-size:0.85rem; padding:4px 0'>"
+                                    f"{email}<span style='color:var(--fg-muted)'>{tag}</span>"
+                                    f"</div>", unsafe_allow_html=True)
+                    with c2:
+                        if is_removable:
+                            if st.button("삭제", key=f"rm_{email}",
+                                          help="이 수신자를 목록에서 제거"):
+                                recipients_mod.remove(email)
+                                st.rerun()
+            else:
+                st.caption("등록된 수신자가 없습니다.")
+
+            def _add_recipient_cb():
+                email = (st.session_state.get("new_recipient_input") or "").strip()
+                if not email:
+                    st.session_state["recipient_msg"] = ("error", "이메일을 입력하세요.")
+                    return
+                if not recipients_mod.is_valid_email(email):
+                    st.session_state["recipient_msg"] = ("error",
+                        f"올바른 이메일 형식이 아닙니다: {email}")
+                    return
+                if recipients_mod.add(email):
+                    st.session_state["recipient_msg"] = ("success", f"추가됨: {email}")
+                    st.session_state["new_recipient_input"] = ""
+                else:
+                    st.session_state["recipient_msg"] = ("info", f"이미 등록되어 있습니다: {email}")
+
+            st.text_input("이메일 추가",
+                          key="new_recipient_input",
+                          placeholder="name@example.com")
+            st.button("추가", on_click=_add_recipient_cb,
+                      width="stretch", key="add_recipient_btn")
+
+            _msg = st.session_state.pop("recipient_msg", None)
+            if _msg:
+                level, text = _msg
+                {"error": st.error, "success": st.success,
+                 "info": st.info}.get(level, st.info)(text)
+
+            if st.button("지금 테스트 발송", width="stretch",
+                          key="test_send_btn", type="primary",
+                          disabled=not all_recipients):
+                from notifiers import email_notifier
+                sample_row = [{
+                    "bid_no": "TEST-001",
+                    "title": "메일링 테스트 공고",
+                    "org_name": "테스트 기관",
+                    "estimated_price": 100_000_000,
+                    "close_date": "2026-12-31 23:59",
+                    "bid_type": "테스트",
+                    "detail_url": None,
+                }]
+                # Override to_addrs with merged list
+                notifier_cfg = dict(config.get("notifier") or {})
+                email_cfg = dict(notifier_cfg.get("email") or {})
+                email_cfg["to_addrs"] = all_recipients
+                notifier_cfg["email"] = email_cfg
+                ok = email_notifier.send_email(sample_row, notifier_cfg)
+                if ok:
+                    st.success(f"테스트 메일 {len(all_recipients)}명에게 발송 완료")
+                else:
+                    st.error("발송 실패 — SMTP 설정(SMTP_USER/PASS) 확인 필요")
 
         st.caption(f"DB: `{db_path.name}` · 최종 업데이트 {last_update}")
 
