@@ -552,15 +552,28 @@ def _fix_alio_url(url, title) -> str | None:
 
 
 def _fix_prvt_url(url, source, bid_no, title) -> str | None:
-    """누리장터(prvt_api_*) rows: 신규 수집 시에는 API 응답의 공고문 PDF URL
-    (ntceSpecDocUrl1) 이 이미 채워져 있음. 레거시 레코드는 None 으로 남아있는데,
-    bid_no 포맷 `{bidPbancNo}-{bidPbancOrd}` 에서 파라미터를 복원해 공개 다운로드
-    URL 을 재구성. prcmBsneSeCd 는 누리장터 기본값 22 로 가정.
+    """누리장터(prvt_api_*) rows 의 detail_url 정규화.
+
+    다음 경우엔 PDF 공고문 URL 로 재구성:
+      1. url 이 비어있음 (None / "")
+      2. url 이 레거시 Google 검색 URL 로 저장됨 (초기 커밋 당시 생성된 값)
+
+    PDF URL 패턴 (공개, SSO 불필요):
+      https://www.g2b.go.kr/pn/pnp/pnpe/UntyAtchFile/downloadFile.do
+        ?bidPbancNo={bidNtceNo}&bidPbancOrd={000-padded}
+        &fileType=&fileSeq=1&prcmBsneSeCd=22
+
+    이미 정상인 g2b PDF URL 은 그대로 유지.
     """
-    if isinstance(url, str) and url.strip():
-        return url
     if not isinstance(source, str) or not source.startswith("prvt_api"):
         return url  # not a prvt row — leave as-is
+
+    is_empty = (not isinstance(url, str) or not url.strip())
+    is_google = (isinstance(url, str)
+                 and "google.com/search" in url)
+    if not (is_empty or is_google):
+        return url
+
     if not isinstance(bid_no, str) or not bid_no:
         return None
     if "-" in bid_no:

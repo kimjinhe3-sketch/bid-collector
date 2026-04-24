@@ -48,6 +48,23 @@ def init_db(db_path: str | Path) -> None:
         conn.executescript(schema)
     _migrate_stale_alio_urls(db_path)
     _migrate_remove_kapt_rows(db_path)
+    _migrate_clear_prvt_google_urls(db_path)
+
+
+def _migrate_clear_prvt_google_urls(db_path: str | Path) -> None:
+    """초기 누리장터 구현엔 detail_url 을 Google 검색 URL 로 저장했으나,
+    현재는 공고문 PDF 직접 다운로드 URL 을 사용함. 레거시 Google URL 은
+    NULL 로 비워 대시보드의 _fix_prvt_url() 재구성 로직이 동작하게 함.
+    """
+    with connect(db_path) as conn:
+        n = conn.execute(
+            "UPDATE bid_announcements SET detail_url = NULL "
+            "WHERE source LIKE 'prvt_api%' "
+            "AND detail_url LIKE '%google.com/search%'"
+        ).rowcount
+        if n:
+            logger.info("migrated: cleared %d legacy Google search URLs "
+                        "on prvt_api rows", n)
 
 
 def _migrate_remove_kapt_rows(db_path: str | Path) -> None:
