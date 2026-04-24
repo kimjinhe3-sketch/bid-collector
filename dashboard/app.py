@@ -556,7 +556,7 @@ def run_collect_action(config: dict, db_path: Path,
     대시보드에서 사용자가 슬라이더로 즉석 지정 가능.
     """
     import time as _time
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from concurrent.futures import ThreadPoolExecutor
     from collectors import (g2b_api, alio_crawler,
                             d2b_api, kwater_api, kepco_api, prvt_api)
     from db import database as dbmod
@@ -657,32 +657,64 @@ def run_collect_action(config: dict, db_path: Path,
         return False, summary, log_lines
 
     # 2. 병렬 실행 — 각 소스 독립적이라 thread-safe
-    _log(f"⏳ {len(tasks)}개 소스 병렬 수집 시작 (가장 느린 소스 시간만큼 걸림)")
+    #    워커 스레드에서는 Streamlit UI를 직접 못 부르므로 queue에 메시지를 쌓고
+    #    메인 스레드가 주기적으로 drain → _log() 호출해 실시간 진행 표시.
+    import queue as _queue
+    msg_queue: _queue.Queue = _queue.Queue()
+
+    _log(f"⏳ {len(tasks)}개 소스 병렬 수집 시작 — 완료되는 순서대로 표시됩니다")
+    for nm, _fn in tasks:
+        _log(f"  · {nm} 대기열 등록")
     t0 = _time.time()
     results: list[tuple[str, list, float, Exception | None]] = []
 
     def _run_one(name, fn):
+        msg_queue.put(f"⏳ {name} 수집 중…")
         ts = _time.time()
         try:
             rows = fn()
-            return (name, rows, _time.time() - ts, None)
+            elapsed = _time.time() - ts
+            msg_queue.put(f"✅ {name}: {len(rows):,}건 수집 ({elapsed:.0f}s)")
+            return (name, rows, elapsed, None)
         except Exception as e:
-            return (name, [], _time.time() - ts, e)
+            elapsed = _time.time() - ts
+            msg_queue.put(f"❌ {name} 오류 ({elapsed:.0f}s): {type(e).__name__}: {e}")
+            return (name, [], elapsed, e)
+
+    def _drain_queue():
+        while True:
+            try:
+                msg = msg_queue.get_nowait()
+            except _queue.Empty:
+                return
+            _log(msg)
 
     with ThreadPoolExecutor(max_workers=len(tasks)) as pool:
         futures = {pool.submit(_run_one, n, f): n for n, f in tasks}
-        for fut in as_completed(futures):
-            results.append(fut.result())
+        pending = set(futures)
+        while pending:
+            _drain_queue()
+            done = {f for f in pending if f.done()}
+            for f in done:
+                try:
+                    results.append(f.result())
+                except Exception as e:
+                    nm = futures.get(f, "?")
+                    results.append((nm, [], 0.0, e))
+            pending -= done
+            if pending:
+                _time.sleep(0.3)
+        # 최종 drain (워커 종료 직후 남은 메시지)
+        _drain_queue()
 
     # 3. DB 업서트는 메인 스레드에서 직렬 처리 (SQLite thread-safety 보장)
+    _log("💾 DB 저장 중…")
     for name, rows, elapsed, err in results:
         if err:
-            msg = f"❌ {name} 오류 ({elapsed:.0f}s): {type(err).__name__}: {err}"
-            errors.append(msg); _log(msg)
+            errors.append(f"❌ {name} 오류 ({elapsed:.0f}s): {type(err).__name__}: {err}")
         else:
             dbmod.upsert_bids(db_path, rows)
             total += len(rows)
-            _log(f"✅ {name}: {len(rows):,}건 ({elapsed:.0f}s)")
 
     grand = _time.time() - t0
     summary = f"수집 완료: {total:,}건 (전체 {grand:.0f}s)"
