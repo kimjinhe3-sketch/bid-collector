@@ -295,28 +295,50 @@ p, .stMarkdown, body { color: var(--text-body); }
   outline: none !important;
 }
 
-/* ─── Sidebar (warm soft) - 강제 표시 ─── */
+/* ─── Sidebar (warm soft) ─── */
+/* 폭/배경만 커스터마이즈. transform/visibility/display 는 건드리지 않아
+   Streamlit 기본 접기/펼치기 애니메이션이 정상 동작하게 둔다. */
 [data-testid="stSidebar"] {
-  background: var(--bg-soft) !important;
+  background: var(--bg-soft);
   border-right: 1px solid var(--border);
-  min-width: 21rem !important;
-  max-width: 21rem !important;
-  transform: translateX(0) !important;
-  visibility: visible !important;
-  display: block !important;
+  width: 21rem;
+  min-width: 21rem;
 }
-/* 사이드바 접기/펼치기 버튼도 항상 표시 */
+/* 접기/펼치기 버튼 항상 보이게 */
 [data-testid="collapsedControl"],
 [data-testid="stSidebarCollapseButton"] {
-  visibility: visible !important;
-  display: flex !important;
+  visibility: visible;
+  display: flex;
 }
-/* 모바일에서만 접힘 허용 (기본 Streamlit 동작) */
+/* 태블릿 (≤ 900px): 사이드바 살짝 좁게 */
+@media (max-width: 900px) {
+  [data-testid="stSidebar"] {
+    width: 17rem;
+    min-width: 17rem;
+  }
+}
+/* 모바일 (≤ 640px): 사이드바 더 좁게 + 내부 여백 축소 */
 @media (max-width: 640px) {
   [data-testid="stSidebar"] {
-    min-width: 16rem !important;
-    max-width: 85vw !important;
+    width: 14rem;
+    min-width: 14rem;
+    max-width: 80vw;
   }
+  [data-testid="stSidebar"] .block-container {
+    padding: 0.6rem 0.6rem !important;
+  }
+  [data-testid="stSidebar"] h3 {
+    font-size: 0.7rem !important;
+    margin: 0.8rem 0 0.3rem 0 !important;
+  }
+  [data-testid="stSidebar"] label,
+  [data-testid="stSidebar"] .stCheckbox label,
+  [data-testid="stSidebar"] input,
+  [data-testid="stSidebar"] textarea,
+  [data-testid="stSidebar"] button {
+    font-size: 0.8rem !important;
+  }
+  [data-testid="stSidebar"] .stSlider { font-size: 0.75rem; }
 }
 [data-testid="stSidebar"] h3 {
   font-family: "Pretendard Variable", Pretendard, sans-serif !important;
@@ -366,12 +388,34 @@ footer { visibility: hidden; }
 
 /* ─── Mobile (≤ 768px) ─── */
 @media (max-width: 768px) {
-  .brand-bar { padding: 14px; }
-  .brand-title { font-size: 1.15rem; }
+  /* 전체 body 폰트 축소 */
+  html, body, .stApp { font-size: 14px !important; }
+  .brand-bar { padding: 12px 14px; }
+  .brand-title { font-size: 1.05rem !important; }
+  .brand-sub { font-size: 0.78rem !important; }
+  h1 { font-size: 1.3rem !important; }
+  h2 { font-size: 1.15rem !important; }
+  h3 { font-size: 1rem !important; }
+  p, span, div { font-size: 0.85rem; }
   [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
   .desktop-only { display: none; }
-  [data-testid="stDataFrame"] { font-size: 0.82rem; }
-  .block-container { padding-top: 0.8rem !important; padding-bottom: 0.8rem !important; }
+  [data-testid="stDataFrame"] { font-size: 0.78rem; }
+  [data-testid="stDataFrame"] th,
+  [data-testid="stDataFrame"] td { padding: 4px 6px !important; }
+  .block-container {
+    padding: 0.7rem 0.6rem !important;
+    max-width: 100vw !important;
+  }
+  .stButton button { font-size: 0.85rem !important; padding: 0.4rem 0.8rem !important; }
+  .kw-chip { font-size: 0.72rem !important; padding: 1px 6px !important; }
+  [data-testid="stMetricValue"] { font-size: 1.1rem !important; }
+  [data-testid="stMetricLabel"] { font-size: 0.75rem !important; }
+}
+/* ─── Small mobile (≤ 480px): 더 축소 ─── */
+@media (max-width: 480px) {
+  html, body, .stApp { font-size: 13px !important; }
+  .brand-title { font-size: 0.95rem !important; }
+  [data-testid="stDataFrame"] { font-size: 0.72rem; }
 }
 </style>
 """
