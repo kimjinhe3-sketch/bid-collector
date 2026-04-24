@@ -47,10 +47,10 @@ def test_rows_to_dataframe_formats_amount_column():
 
 
 def test_rows_to_dataframe_maps_source_label():
-    rows = [_row(1, source="g2b_api_servc"), _row(2, source="kapt_api")]
+    rows = [_row(1, source="g2b_api_servc"), _row(2, source="alio")]
     df = dashboard.rows_to_dataframe(rows)
     assert "나라장터 용역" in list(df["source_label"])
-    assert "K-apt" in list(df["source_label"])
+    assert "ALIO" in list(df["source_label"])
 
 
 def test_rows_to_dataframe_upgrades_kepco_http_to_https():
@@ -107,7 +107,7 @@ def test_source_labels_cover_known_sources():
         "g2b_api_frgcpt", "g2b_api_etc",
         "prvt_api_servc", "prvt_api_thng",
         "prvt_api_cnstwk", "prvt_api_etc",
-        "kapt_api", "alio", "g2b_crawl",
+        "alio", "g2b_crawl",
         "d2b_api_dmstc", "kwater_api",
         "kwater_api_cntrwk", "kwater_api_gds",
         "kwater_api_servc", "kwater_api_dmscpt",

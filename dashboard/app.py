@@ -53,7 +53,7 @@ SOURCE_GROUPS = {
         "prvt_api_cnstwk", "prvt_api_etc",
     ],
     "기타": [
-        "d2b_api_dmstc", "kepco_api", "alio", "kapt_api",
+        "d2b_api_dmstc", "kepco_api", "alio",
         "kwater_api", "kwater_api_cntrwk", "kwater_api_gds",
         "kwater_api_servc", "kwater_api_dmscpt", "g2b_crawl",
     ],
@@ -69,7 +69,6 @@ SOURCE_LABELS = {
     "prvt_api_thng":   "누리장터 물품",
     "prvt_api_cnstwk": "누리장터 공사",
     "prvt_api_etc":    "누리장터 기타",
-    "kapt_api": "K-apt",
     "alio": "ALIO",
     "g2b_crawl": "나라장터 크롤",
     "d2b_api_dmstc": "방위사업청",
@@ -88,62 +87,57 @@ SOURCE_LABELS = {
 
 CUSTOM_CSS = """
 <style>
-/* ─────────────── macOS-inspired design system ─────────────── */
+/* ─────────────── Anthropic/Claude-inspired design ─────────────── */
 :root {
-  --bg: #f5f5f7;
+  --bg: #faf9f5;          /* warm off-white */
+  --bg-soft: #f0eee6;     /* sidebar */
   --card: #ffffff;
-  --fg: #1d1d1f;
-  --fg-muted: #86868b;
-  --border: rgba(0, 0, 0, 0.08);
-  --border-strong: rgba(0, 0, 0, 0.14);
-  --accent: #0071e3;
-  --accent-hover: #0077ed;
-  --danger: #ff453a;
-  --success: #34c759;
-  --radius-sm: 8px;
+  --fg: #3d3929;          /* warm dark brown */
+  --fg-muted: #8b867d;    /* muted warm gray */
+  --border: rgba(61, 57, 41, 0.10);
+  --border-strong: rgba(61, 57, 41, 0.20);
+  --accent: #c96442;      /* coral/orange (Claude) */
+  --accent-hover: #b85736;
+  --accent-soft: rgba(201, 100, 66, 0.10);
+  --danger: #b6442b;
+  --success: #7c8f52;
+  --radius-sm: 6px;
   --radius: 10px;
   --radius-lg: 14px;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
-  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
 }
 
-html, body, [class^="st-"], [class*=" st-"],
-.stApp, .stMarkdown, button, input, textarea, select {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
-               "SF Pro Text", "Pretendard Variable", Pretendard,
-               "Apple SD Gothic Neo", "Segoe UI", Roboto, sans-serif !important;
+html, body, .stApp { background: var(--bg) !important; }
+
+body, [class^="st-"], [class*=" st-"], .stMarkdown,
+input, textarea, button, select {
+  font-family: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo",
+               Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  color: var(--fg);
+  letter-spacing: -0.003em;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  color: var(--fg);
-  letter-spacing: -0.005em;
 }
 
-.stApp { background: var(--bg) !important; }
-
-h1, h2, h3, h4 {
-  font-weight: 600 !important;
-  letter-spacing: -0.015em !important;
-  color: var(--fg);
+/* Headers use serif like Claude.ai */
+h1, h2, h3, h4, .brand-title {
+  font-family: "Noto Serif KR", "Tiempos Headline", Georgia,
+               "Pretendard Variable", Pretendard, serif !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.01em !important;
+  color: var(--fg) !important;
 }
-h3 { font-size: 1.05rem !important; margin: 1rem 0 0.5rem 0 !important; }
+h3 { font-size: 1.1rem !important; margin: 1.2rem 0 0.5rem 0 !important; }
 
-/* ─── Brand bar (macOS card style) ─── */
+/* ─── Brand bar ─── */
 .brand-bar {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 18px;
-  background: rgba(255,255,255,0.8);
-  backdrop-filter: saturate(180%) blur(24px);
-  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  margin-bottom: 18px;
-  box-shadow: var(--shadow-sm);
+  padding: 18px 22px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 2px rgba(61, 57, 41, 0.04);
 }
-.brand-title {
-  font-size: 1.15rem; font-weight: 600; margin: 0;
-  letter-spacing: -0.02em; color: var(--fg);
-}
-.brand-sub { font-size: 0.82rem; color: var(--fg-muted); }
+.brand-title { font-size: 1.4rem; margin: 0; }
+.brand-sub { font-size: 0.82rem; color: var(--fg-muted); margin-top: 4px; }
 
 /* ─── Section hints ─── */
 .section-hint {
@@ -151,13 +145,13 @@ h3 { font-size: 1.05rem !important; margin: 1rem 0 0.5rem 0 !important; }
   margin: -0.3rem 0 0.75rem 0;
 }
 
-/* ─── Keyword chips ─── */
+/* ─── Keyword chips (warm palette) ─── */
 .kw-chip {
   display: inline-block; padding: 3px 10px; margin: 3px 4px 3px 0;
-  background: rgba(0,113,227,0.1); color: var(--accent);
+  background: var(--accent-soft); color: var(--accent);
   border-radius: 999px; font-size: 0.76rem; font-weight: 500;
 }
-.kw-chip.ex { background: rgba(255,69,58,0.1); color: var(--danger); }
+.kw-chip.ex { background: rgba(139, 134, 125, 0.15); color: var(--fg-muted); }
 
 /* ─── Empty state ─── */
 .empty-state {
@@ -166,7 +160,7 @@ h3 { font-size: 1.05rem !important; margin: 1rem 0 0.5rem 0 !important; }
   border-radius: var(--radius); color: var(--fg-muted);
 }
 
-/* ─── Buttons (macOS vibrant) ─── */
+/* ─── Buttons (Claude warm) ─── */
 .stButton > button {
   border-radius: var(--radius-sm) !important;
   border: 1px solid var(--border) !important;
@@ -174,24 +168,23 @@ h3 { font-size: 1.05rem !important; margin: 1rem 0 0.5rem 0 !important; }
   color: var(--fg) !important;
   font-weight: 500 !important;
   font-size: 0.88rem !important;
-  padding: 0.35rem 0.9rem !important;
+  padding: 0.4rem 0.95rem !important;
   transition: all 0.12s ease !important;
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: none !important;
 }
 .stButton > button:hover {
   border-color: var(--border-strong) !important;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.08) !important;
+  background: #fdfcf7 !important;
 }
 .stButton > button[kind="primary"] {
   background: var(--accent) !important;
   color: #fff !important;
-  border: none !important;
+  border: 1px solid var(--accent) !important;
 }
 .stButton > button[kind="primary"]:hover {
   background: var(--accent-hover) !important;
+  border-color: var(--accent-hover) !important;
 }
-.stDownloadButton > button { border-radius: var(--radius-sm) !important; }
 
 /* ─── Inputs ─── */
 .stTextInput input, .stTextArea textarea,
@@ -202,53 +195,56 @@ h3 { font-size: 1.05rem !important; margin: 1rem 0 0.5rem 0 !important; }
   background: var(--card) !important;
   font-size: 0.88rem !important;
   color: var(--fg) !important;
-  transition: border-color 0.12s, box-shadow 0.12s !important;
 }
 .stTextInput input:focus, .stTextArea textarea:focus,
 .stDateInput input:focus, .stNumberInput input:focus {
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px rgba(0,113,227,0.15) !important;
+  box-shadow: 0 0 0 3px var(--accent-soft) !important;
   outline: none !important;
 }
 
-/* ─── Sidebar (frosted) ─── */
+/* ─── Sidebar (warm soft) ─── */
 [data-testid="stSidebar"] {
-  background: rgba(246,246,248,0.75) !important;
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  background: var(--bg-soft) !important;
   border-right: 1px solid var(--border);
 }
-[data-testid="stSidebar"] h3 { font-size: 0.95rem !important; color: var(--fg-muted) !important;
-                                text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600 !important; }
-
-/* ─── Checkboxes (larger + aligned) ─── */
-[data-testid="stCheckbox"] label {
-  font-size: 0.9rem; font-weight: 500;
+[data-testid="stSidebar"] h3 {
+  font-family: "Pretendard Variable", Pretendard, sans-serif !important;
+  font-size: 0.78rem !important;
+  color: var(--fg-muted) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600 !important;
+  margin: 1.2rem 0 0.4rem 0 !important;
 }
 
-/* ─── Dataframe (rounded, bordered) ─── */
+/* ─── Checkboxes ─── */
+[data-testid="stCheckbox"] label { font-size: 0.9rem; font-weight: 500; }
+
+/* ─── Dataframe ─── */
 [data-testid="stDataFrame"] {
   border-radius: var(--radius) !important;
   overflow: hidden;
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
 }
 [data-testid="stDataFrame"] a { text-decoration: none; color: var(--accent); }
 
-/* ─── Slider / status ─── */
+/* ─── Slider ─── */
 .stSlider [role="slider"] { background: var(--accent) !important; }
 [data-testid="stStatus"] { border-radius: var(--radius) !important; }
 
-/* ─── Hide Streamlit chrome ─── */
+/* ─── Hide Streamlit chrome (사이드바 toggle은 유지) ─── */
 footer { visibility: hidden; }
 #MainMenu { visibility: hidden; }
 [data-testid="stToolbar"] { display: none; }
-header { visibility: hidden; height: 0 !important; }
+[data-testid="stDecoration"] { display: none; }
+[data-testid="stAppDeployButton"] { display: none; }
+/* header는 그대로 — 사이드바 toggle이 거기 있음 */
 
 /* ─── Mobile (≤ 768px) ─── */
 @media (max-width: 768px) {
-  .brand-bar { flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px; }
-  .brand-title { font-size: 1.0rem; }
+  .brand-bar { padding: 14px; }
+  .brand-title { font-size: 1.15rem; }
   [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
   .desktop-only { display: none; }
   [data-testid="stDataFrame"] { font-size: 0.82rem; }
@@ -417,26 +413,26 @@ def render_kw_chips(include: list[str], exclude: list[str]) -> str:
 
 def run_collect_action(config: dict, db_path: Path,
                         log_callback=None) -> tuple[bool, str, list[str]]:
-    """Run collection synchronously from within the dashboard.
+    """Run collection in parallel (ThreadPoolExecutor).
 
-    log_callback(msg: str)가 주어지면 각 스테이지 시작/종료 시 즉시 호출해
-    UI에 실시간으로 진행 상황을 표시할 수 있습니다.
-    Returns (ok, summary, per_source_log).
+    모든 소스를 **동시에** 호출하므로 가장 느린 소스의 시간만큼만 걸림
+    (기존 순차 ≒ 합계 → 병렬 ≒ max).
     """
     import time as _time
-    from collectors import (g2b_api, kapt_api, alio_crawler,
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from collectors import (g2b_api, alio_crawler,
                             d2b_api, kwater_api, kepco_api, prvt_api)
     from db import database as dbmod
 
-    sleep = float(config.get("collection", {}).get("request_sleep_seconds", 0.8))
+    sleep = float(config.get("collection", {}).get("request_sleep_seconds", 0.5))
     page_size = int(config.get("collection", {}).get("page_size", 100))
     lookback = int(config.get("collection", {}).get("lookback_days", 1))
     sources = config.get("collection", {}).get("sources") or {}
 
     dbmod.init_db(db_path)
     total = 0
-    errors = []
-    log_lines = []
+    errors: list[str] = []
+    log_lines: list[str] = []
 
     def _log(msg: str):
         log_lines.append(msg)
@@ -446,20 +442,8 @@ def run_collect_action(config: dict, db_path: Path,
             except Exception:
                 pass
 
-    def _run_stage(name: str, fn):
-        nonlocal total
-        _log(f"⏳ {name} 수집 중…")
-        t0 = _time.time()
-        try:
-            rows = fn()
-            dbmod.upsert_bids(db_path, rows)
-            total += len(rows)
-            elapsed = _time.time() - t0
-            _log(f"✅ {name}: {len(rows):,}건 ({elapsed:.0f}s)")
-        except Exception as e:
-            elapsed = _time.time() - t0
-            msg = f"❌ {name} 오류 ({elapsed:.0f}s): {type(e).__name__}: {e}"
-            errors.append(msg); _log(msg)
+    # 1. 각 활성 소스의 수집 함수를 (이름, 함수) 튜플로 수집
+    tasks: list[tuple[str, callable]] = []
 
     if sources.get("g2b_api"):
         key = get_secret("G2B_SERVICE_KEY")
@@ -467,49 +451,39 @@ def run_collect_action(config: dict, db_path: Path,
             msg = "❌ 나라장터(G2B): G2B_SERVICE_KEY 미설정 — Secrets에 추가하세요."
             errors.append(msg); _log(msg)
         else:
-            _run_stage("나라장터(G2B)", lambda: g2b_api.collect_all(
-                service_key=key, page_size=page_size,
+            tasks.append(("나라장터(G2B)", lambda k=key: g2b_api.collect_all(
+                service_key=k, page_size=page_size,
                 sleep_seconds=sleep, lookback_days=lookback,
-            ))
+            )))
 
     if sources.get("prvt_api"):
         key = get_secret("G2B_SERVICE_KEY")
         if not key:
             _log("⏩ 누리장터(민간): G2B 키 없음 — skip")
         else:
-            _run_stage("누리장터(민간)", lambda: prvt_api.collect_all(
-                service_key=key, page_size=page_size,
+            tasks.append(("누리장터(민간)", lambda k=key: prvt_api.collect_all(
+                service_key=k, page_size=page_size,
                 sleep_seconds=sleep, lookback_days=lookback,
-            ))
-
-    if sources.get("kapt_api"):
-        key = get_secret("KAPT_SERVICE_KEY")
-        if not key:
-            _log("⏩ K-apt: 키 없음 — skip")
-        else:
-            _run_stage("K-apt", lambda: kapt_api.collect(
-                service_key=key, page_size=page_size,
-                sleep_seconds=sleep, lookback_days=lookback,
-            ))
+            )))
 
     if sources.get("alio"):
         alio_cfg = (config.get("collection", {}).get("alio") or {})
-        _run_stage("ALIO", lambda: alio_crawler.collect(
-            word=alio_cfg.get("keyword", ""),
-            max_pages=int(alio_cfg.get("max_pages", 10)),
+        tasks.append(("ALIO", lambda c=alio_cfg: alio_crawler.collect(
+            word=c.get("keyword", ""),
+            max_pages=int(c.get("max_pages", 10)),
             sleep_seconds=sleep,
             lookback_days=lookback,
-        ))
+        )))
 
     if sources.get("d2b_api"):
         key = get_secret("G2B_SERVICE_KEY") or get_secret("D2B_SERVICE_KEY")
         if not key:
             _log("⏩ 방위사업청(d2b): 키 없음 — skip")
         else:
-            _run_stage("방위사업청(d2b)", lambda: d2b_api.collect_all(
-                service_key=key, page_size=page_size,
+            tasks.append(("방위사업청(d2b)", lambda k=key: d2b_api.collect_all(
+                service_key=k, page_size=page_size,
                 sleep_seconds=sleep, lookback_days=lookback,
-            ))
+            )))
 
     if sources.get("kwater_api"):
         key = get_secret("G2B_SERVICE_KEY") or get_secret("KWATER_SERVICE_KEY")
@@ -517,14 +491,14 @@ def run_collect_action(config: dict, db_path: Path,
         if not key or not kw_cfg.get("base_url"):
             _log("⏩ K-water: 키 또는 base_url 미설정 — skip")
         else:
-            _run_stage("K-water", lambda: kwater_api.collect(
-                service_key=key,
-                base_url=kw_cfg["base_url"],
-                type_param=kw_cfg.get("type_param", "_type"),
+            tasks.append(("K-water", lambda k=key, c=kw_cfg: kwater_api.collect(
+                service_key=k,
+                base_url=c["base_url"],
+                type_param=c.get("type_param", "_type"),
                 page_size=page_size,
                 sleep_seconds=sleep,
                 lookback_days=lookback,
-            ))
+            )))
 
     if sources.get("kepco_api"):
         kepco_key = get_secret("KEPCO_API_KEY")
@@ -532,15 +506,48 @@ def run_collect_action(config: dict, db_path: Path,
         if not kepco_key:
             _log("⏩ KEPCO: KEPCO_API_KEY 없음 — skip (bigdata.kepco.co.kr 발급 필요)")
         else:
-            _run_stage("KEPCO", lambda: kepco_api.collect(
-                api_key=kepco_key,
-                base_url=kepco_cfg.get("base_url") or kepco_api.DEFAULT_BASE_URL,
-                company_ids=kepco_cfg.get("company_ids") or None,
+            tasks.append(("KEPCO", lambda k=kepco_key, c=kepco_cfg: kepco_api.collect(
+                api_key=k,
+                base_url=c.get("base_url") or kepco_api.DEFAULT_BASE_URL,
+                company_ids=c.get("company_ids") or None,
                 sleep_seconds=sleep,
                 lookback_days=lookback,
-            ))
+            )))
 
-    summary = f"수집 완료: {total:,}건"
+    if not tasks:
+        summary = "수집할 소스가 없습니다."
+        return False, summary, log_lines
+
+    # 2. 병렬 실행 — 각 소스 독립적이라 thread-safe
+    _log(f"⏳ {len(tasks)}개 소스 병렬 수집 시작 (가장 느린 소스 시간만큼 걸림)")
+    t0 = _time.time()
+    results: list[tuple[str, list, float, Exception | None]] = []
+
+    def _run_one(name, fn):
+        ts = _time.time()
+        try:
+            rows = fn()
+            return (name, rows, _time.time() - ts, None)
+        except Exception as e:
+            return (name, [], _time.time() - ts, e)
+
+    with ThreadPoolExecutor(max_workers=len(tasks)) as pool:
+        futures = {pool.submit(_run_one, n, f): n for n, f in tasks}
+        for fut in as_completed(futures):
+            results.append(fut.result())
+
+    # 3. DB 업서트는 메인 스레드에서 직렬 처리 (SQLite thread-safety 보장)
+    for name, rows, elapsed, err in results:
+        if err:
+            msg = f"❌ {name} 오류 ({elapsed:.0f}s): {type(err).__name__}: {err}"
+            errors.append(msg); _log(msg)
+        else:
+            dbmod.upsert_bids(db_path, rows)
+            total += len(rows)
+            _log(f"✅ {name}: {len(rows):,}건 ({elapsed:.0f}s)")
+
+    grand = _time.time() - t0
+    summary = f"수집 완료: {total:,}건 (전체 {grand:.0f}s)"
     if errors:
         summary += f" · 오류 {len(errors)}건"
     invalidate_all_caches()
@@ -583,7 +590,7 @@ def main() -> None:
         page_title="국내 입찰공고 현황",
         page_icon="📋",
         layout="wide",
-        initial_sidebar_state="auto",
+        initial_sidebar_state="expanded",  # 사이드바 기본 열림
     )
     st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
@@ -612,11 +619,8 @@ def main() -> None:
     st.markdown(
         f"""
         <div class="brand-bar">
-          <div>
-            <div class="brand-title">국내 입찰공고 현황</div>
-            <div class="brand-sub">마지막 수집: <b>{last_update}</b></div>
-          </div>
-          <div class="brand-sub">공공데이터포털 · ALIO · K-apt</div>
+          <div class="brand-title">국내 입찰공고 현황</div>
+          <div class="brand-sub">마지막 수집 · <b>{last_update}</b></div>
         </div>
         """,
         unsafe_allow_html=True,

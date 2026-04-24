@@ -47,6 +47,16 @@ def init_db(db_path: str | Path) -> None:
     with connect(db_path) as conn:
         conn.executescript(schema)
     _migrate_stale_alio_urls(db_path)
+    _migrate_remove_kapt_rows(db_path)
+
+
+def _migrate_remove_kapt_rows(db_path: str | Path) -> None:
+    """K-apt 소스는 대시보드에서 완전히 제거됨 → 관련 레코드 삭제."""
+    with connect(db_path) as conn:
+        n = conn.execute("DELETE FROM bid_announcements "
+                         "WHERE source = 'kapt_api' OR bid_type = 'K-apt'").rowcount
+        if n:
+            logger.info("migrated: removed %d K-apt rows", n)
 
 
 def _migrate_stale_alio_urls(db_path: str | Path) -> None:

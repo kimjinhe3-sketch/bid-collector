@@ -18,7 +18,7 @@ load_dotenv(ROOT / ".env")
 
 from utils.logger import setup_logger, get_logger
 from utils.config_loader import load_config, cron_kwargs
-from collectors import g2b_api, kapt_api, alio_crawler, g2b_crawler, d2b_api, kwater_api, kepco_api, prvt_api
+from collectors import g2b_api, alio_crawler, g2b_crawler, d2b_api, kwater_api, kepco_api, prvt_api
 from db import database
 from filters import keyword_filter
 from notifiers import email_notifier, slack_notifier
@@ -72,26 +72,6 @@ def run_collect(config: dict) -> int:
                 total_collected += len(rows)
             except Exception:
                 logger.exception("g2b_api collection crashed")
-
-    if sources.get("kapt_api"):
-        key = os.environ.get("KAPT_SERVICE_KEY")
-        if not key:
-            logger.warning("KAPT_SERVICE_KEY missing in env — skipping kapt_api")
-        else:
-            try:
-                kapt_cfg = (config.get("collection", {}).get("kapt") or {})
-                rows = kapt_api.collect(
-                    service_key=key,
-                    base_url=kapt_cfg.get("base_url") or kapt_api.DEFAULT_BASE_URL,
-                    operation=kapt_cfg.get("operation") or kapt_api.DEFAULT_OPERATION,
-                    page_size=page_size,
-                    sleep_seconds=sleep_seconds,
-                    lookback_days=lookback_days,
-                )
-                database.upsert_bids(db_path, rows)
-                total_collected += len(rows)
-            except Exception:
-                logger.exception("kapt_api collection crashed")
 
     if sources.get("alio"):
         try:
