@@ -304,11 +304,16 @@ p, .stMarkdown, body { color: var(--text-body); }
   width: 21rem;
   min-width: 21rem;
 }
-/* 접기/펼치기 버튼 항상 보이게 */
+/* 접기/펼치기 버튼 항상 보이게 (버전별 test-id 모두 커버) */
 [data-testid="collapsedControl"],
-[data-testid="stSidebarCollapseButton"] {
-  visibility: visible;
-  display: flex;
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="stSidebarCollapseButton"],
+[data-testid="baseButton-headerNoPadding"],
+[data-testid="stBaseButton-headerNoPadding"] {
+  visibility: visible !important;
+  display: flex !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
 }
 /* 태블릿 (≤ 900px): 사이드바 살짝 좁게 */
 @media (max-width: 900px) {
@@ -317,13 +322,34 @@ p, .stMarkdown, body { color: var(--text-body); }
     min-width: 17rem;
   }
 }
-/* 모바일 (≤ 640px): 사이드바 더 좁게 + 내부 여백 축소 */
+/* 모바일 (≤ 640px): 사이드바 폭 + 햄버거 버튼 강제 노출 */
 @media (max-width: 640px) {
-  [data-testid="stSidebar"] {
-    width: 14rem;
-    min-width: 14rem;
-    max-width: 80vw;
+  /* 사이드바가 펼쳐졌을 때 화면 폭 대부분 차지 */
+  [data-testid="stSidebar"][aria-expanded="true"] {
+    width: 85vw !important;
+    min-width: 0 !important;
+    max-width: 85vw !important;
   }
+  /* 사이드바가 접혔을 때 햄버거를 눈에 띄게 — 좌상단 floating */
+  [data-testid="collapsedControl"],
+  [data-testid="stSidebarCollapsedControl"] {
+    position: fixed !important;
+    top: 8px !important;
+    left: 8px !important;
+    z-index: 9999 !important;
+    background: var(--bg-surface) !important;
+    border: 1px solid var(--accent) !important;
+    border-radius: 10px !important;
+    padding: 6px 10px !important;
+    box-shadow: 0 2px 10px rgba(216, 90, 48, 0.18) !important;
+  }
+  [data-testid="collapsedControl"] svg,
+  [data-testid="stSidebarCollapsedControl"] svg {
+    width: 22px !important;
+    height: 22px !important;
+    color: var(--accent) !important;
+  }
+  /* 사이드바 내부 폰트·여백 축소 */
   [data-testid="stSidebar"] .block-container {
     padding: 0.6rem 0.6rem !important;
   }
@@ -991,7 +1017,8 @@ def main() -> None:
         page_title="국내 입찰공고 현황",
         page_icon="📋",
         layout="wide",
-        initial_sidebar_state="expanded",  # 사이드바 기본 열림
+        # 데스크톱: 자동으로 펼쳐짐. 모바일: 자동으로 접힘 + 햄버거 버튼 노출
+        initial_sidebar_state="auto",
     )
     st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
