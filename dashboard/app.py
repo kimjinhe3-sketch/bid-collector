@@ -360,6 +360,13 @@ p, .stMarkdown, body { color: var(--text-body); }
   border: 1px solid var(--border-line);
   background: var(--bg-surface);
 }
+/* 모바일에서 세로 스크롤이 테이블에 갇히는 문제 해결:
+   터치 세로 제스처는 브라우저(페이지 스크롤)에 양보, 가로 제스처는
+   glide-data-grid 가 받아 컬럼 스크롤 처리. */
+[data-testid="stDataFrame"],
+[data-testid="stDataFrame"] * {
+  touch-action: pan-y !important;
+}
 /* "열기" 링크 — 파랑 유지로 클릭 가능 신호 */
 [data-testid="stDataFrame"] a {
   text-decoration: none;
@@ -911,10 +918,10 @@ def main() -> None:
         "f_date_range_input": (today - timedelta(days=30), today),
     }
     _misc_defaults = {
-        # 그룹별 체크박스 (기본: 전부 해제 = 전체 표시)
-        "mcard_나라장터": False,
-        "mcard_누리장터": False,
-        "mcard_기타": False,
+        # 그룹별 체크박스 (기본: 전부 체크 → 전체 표시)
+        "mcard_나라장터": True,
+        "mcard_누리장터": True,
+        "mcard_기타": True,
         # 수집 범위 — 기본 7일
         "f_collect_lookback_input": int(config.get("collection", {}).get("lookback_days", 7)),
     }
