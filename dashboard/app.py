@@ -86,10 +86,12 @@ SOURCE_LABELS = {
 # ────────────────────────────────────────────────────────────────
 
 CUSTOM_CSS = """
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&display=block" rel="stylesheet">
 <style>
+/* Material Icons / Symbols 폰트 강제 로드 — Streamlit Cloud 모바일 wrapper
+   에서 자체 폰트가 누락되는 경우 대비. @import 는 style 블록 최상단 필수. */
+@import url("https://fonts.googleapis.com/icon?family=Material+Icons");
+@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&display=block");
+
 /* ─────────────── Design spec (warm coral palette) ─────────────── */
 :root {
   /* Primary action */
