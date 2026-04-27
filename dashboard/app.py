@@ -510,6 +510,22 @@ p, .stMarkdown, body { color: var(--text-body); }
    - 가로 컬럼 스크롤: glide-data-grid 자체 핸들러가 처리 (CSS 로 막으면 안 됨)
    - 세로 페이지 스크롤: main() 의 JS 핸들러가 sticky direction 으로
      window capture 단계에서 grid 핸들러를 stopImmediatePropagation. */
+
+/* 모바일 viewport 채우기 — 표 아래 빈 공간 제거.
+   calc(100vh - 280px) 의 280px = stHeader(60) + 로고카드(80) + 필터row(40)
+   + 캡션(20) + 타이틀바(40) + 마진들 (~40). 화면 회전·기기별 차이는
+   min/max-height 로 가드. */
+@media (max-width: 768px) {
+  [data-testid="stDataFrame"] {
+    height: calc(100vh - 280px) !important;
+    min-height: 420px !important;
+    max-height: calc(100vh - 200px) !important;
+  }
+  [data-testid="stDataFrame"] > div,
+  [data-testid="stDataFrame"] > div > div {
+    height: 100% !important;
+  }
+}
 /* "열기" 링크 — 파랑 유지로 클릭 가능 신호 */
 [data-testid="stDataFrame"] a {
   text-decoration: none;
@@ -1593,6 +1609,9 @@ def main() -> None:
         st.dataframe(
             styled,
             width="stretch",
+            # 행이 많을수록 표 자체도 길게 (글이드 데이터그리드는 가상 스크롤이라 OK).
+            # 모바일은 CSS @media 로 calc(100vh - X) 강제하여 viewport 채움.
+            height=min(900, max(450, len(df) * 36 + 60)),
             hide_index=True,
             column_config={
                 "신규": st.column_config.TextColumn(
