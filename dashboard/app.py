@@ -86,6 +86,9 @@ SOURCE_LABELS = {
 # ────────────────────────────────────────────────────────────────
 
 CUSTOM_CSS = """
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&display=block" rel="stylesheet">
 <style>
 /* ─────────────── Design spec (warm coral palette) ─────────────── */
 :root {
@@ -153,17 +156,26 @@ body, .stApp {
   color: var(--fg);
 }
 
-/* Material Icons / Symbols 원본 폰트 강제 복구 (내 Pretendard 오버라이드로 덮인 것 되돌림) */
+/* Material Icons / Symbols — Streamlit Cloud 모바일에서 자체 폰트가
+   안 들어오는 경우 Google Fonts CDN 폴백 (위에서 link 로 preload).
+   ligature 가 raw 텍스트로 보이는 것 방지. */
 .material-icons, .material-symbols-outlined, .material-symbols-rounded,
 span[class*="material-icons"], span[class*="material-symbols"],
 [data-testid="stIconMaterial"], [data-testid*="Icon"] > span {
-  font-family: "Material Symbols Rounded", "Material Symbols Outlined",
+  font-family: "Material Symbols Outlined", "Material Symbols Rounded",
                "Material Icons" !important;
   font-feature-settings: "liga" !important;
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24 !important;
   font-weight: normal !important;
   font-style: normal !important;
   line-height: 1 !important;
   letter-spacing: normal !important;
+  text-transform: none !important;
+  display: inline-block !important;
+  white-space: nowrap !important;
+  word-wrap: normal !important;
+  direction: ltr !important;
+  -webkit-font-smoothing: antialiased !important;
 }
 
 /* Typography hierarchy per design spec */
@@ -308,6 +320,7 @@ p, .stMarkdown, body { color: var(--text-body); }
 [data-testid="collapsedControl"],
 [data-testid="stSidebarCollapsedControl"],
 [data-testid="stSidebarCollapseButton"],
+[data-testid="stExpandSidebarButton"],
 [data-testid="baseButton-headerNoPadding"],
 [data-testid="stBaseButton-headerNoPadding"] {
   visibility: visible !important;
@@ -330,9 +343,11 @@ p, .stMarkdown, body { color: var(--text-body); }
     min-width: 0 !important;
     max-width: 85vw !important;
   }
-  /* 사이드바가 접혔을 때 햄버거를 눈에 띄게 — 좌상단 floating */
+  /* 사이드바가 접혔을 때 햄버거를 눈에 띄게 — 좌상단 floating
+     Streamlit 1.56 은 stExpandSidebarButton 이 햄버거 역할 */
   [data-testid="collapsedControl"],
-  [data-testid="stSidebarCollapsedControl"] {
+  [data-testid="stSidebarCollapsedControl"],
+  [data-testid="stExpandSidebarButton"] {
     position: fixed !important;
     top: 8px !important;
     left: 8px !important;
@@ -344,9 +359,12 @@ p, .stMarkdown, body { color: var(--text-body); }
     box-shadow: 0 2px 10px rgba(216, 90, 48, 0.18) !important;
   }
   [data-testid="collapsedControl"] svg,
-  [data-testid="stSidebarCollapsedControl"] svg {
+  [data-testid="stSidebarCollapsedControl"] svg,
+  [data-testid="stExpandSidebarButton"] svg,
+  [data-testid="stExpandSidebarButton"] [data-testid="stIconMaterial"] {
     width: 22px !important;
     height: 22px !important;
+    font-size: 22px !important;
     color: var(--accent) !important;
   }
   /* 사이드바 내부 폰트·여백 축소 */
