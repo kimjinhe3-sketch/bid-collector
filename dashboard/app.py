@@ -456,13 +456,10 @@ p, .stMarkdown, body { color: var(--text-body); }
   border: 1px solid var(--border-line);
   background: var(--bg-surface);
 }
-/* 모바일에서 세로 스크롤이 테이블에 갇히는 문제 해결:
-   터치 세로 제스처는 브라우저(페이지 스크롤)에 양보, 가로 제스처는
-   glide-data-grid 가 받아 컬럼 스크롤 처리. */
-[data-testid="stDataFrame"],
-[data-testid="stDataFrame"] * {
-  touch-action: pan-y !important;
-}
+/* dataframe 의 touch-action 은 강제하지 않음 (Streamlit 기본값 사용).
+   - 가로 컬럼 스크롤: glide-data-grid 자체 핸들러가 처리 (CSS 로 막으면 안 됨)
+   - 세로 페이지 스크롤: main() 의 JS 핸들러가 sticky direction 으로
+     window capture 단계에서 grid 핸들러를 stopImmediatePropagation. */
 /* "열기" 링크 — 파랑 유지로 클릭 가능 신호 */
 [data-testid="stDataFrame"] a {
   text-decoration: none;
