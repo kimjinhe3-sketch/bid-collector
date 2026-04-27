@@ -1284,7 +1284,9 @@ def main() -> None:
         "mcard_누리장터": True,
         "mcard_기타": True,
         # 수집 범위 — 기본 7일
-        "f_collect_lookback_input": int(config.get("collection", {}).get("lookback_days", 7)),
+        "f_collect_lookback_input": int(config.get("collection", {}).get("lookback_days", 30)),
+        # 마감 안 지난 활성 공고만 표시 (기본 ON)
+        "f_active_only_input": True,
     }
     for _k, _v in {**_filter_defaults, **_misc_defaults}.items():
         st.session_state.setdefault(_k, _v)
@@ -1382,6 +1384,11 @@ def main() -> None:
 
         st.slider("금액 범위 (억원)", 0, 9999, key="f_amount_slider_input", step=1)
 
+        # 마감 안 지난 입찰 진행중 공고만 표시 (기본 ON)
+        st.checkbox("입찰 진행중인 공고만",
+                    key="f_active_only_input",
+                    help="마감일이 오늘 이후인 공고만 표시 (마감 지난 공고 제외)")
+
         # 필터 기본값 복원 — on_click 콜백 (widget key에 직접 할당 불가)
         def _reset_filters_cb():
             for _k, _v in _filter_defaults.items():
@@ -1405,15 +1412,16 @@ def main() -> None:
             invalidate_all_caches()
             st.rerun()
 
-        # 수집 범위 — 슬라이더로 사용자 지정 (기본 7일)
-        st.slider("수집 범위 (일)", min_value=1, max_value=30, value=7,
+        # 수집 범위 — 슬라이더로 사용자 지정 (기본 30일, 누리장터 등 마감
+        # 안 지난 활성 공고 충분히 잡으려면 30일 권장)
+        st.slider("수집 범위 (일)", min_value=1, max_value=90, value=30,
                   key="f_collect_lookback_input",
                   help="오늘 기준 과거 N일 동안 올라온 공고를 수집")
 
         # 수집하기 (아래) — 외부 API 호출
         if st.button("지금 수집", width="stretch", type="secondary",
                      key="collect_btn"):
-            lookback_v = int(st.session_state.get("f_collect_lookback_input", 7))
+            lookback_v = int(st.session_state.get("f_collect_lookback_input", 30))
             with st.status(f"공고 수집 중 (최근 {lookback_v}일)… 약 1~2분 소요됩니다.",
                            expanded=True) as status:
                 def _stream(msg: str):
@@ -1552,6 +1560,16 @@ def main() -> None:
             if d_end and d > d_end: return False
             return True
         rows = [r for r in rows if _in_date_range(r)]
+
+    # 입찰 진행중 (마감일 ≥ 오늘) 필터
+    if st.session_state.get("f_active_only_input", True):
+        _today = date.today()
+        def _is_active(r: dict) -> bool:
+            d = _parse_open_date(r.get("close_date"))
+            if d is None:
+                return True   # 마감일 파싱 실패 시 보수적으로 포함
+            return d >= _today
+        rows = [r for r in rows if _is_active(r)]
 
     filter_cfg = {
         "include_keywords": applied_include,
