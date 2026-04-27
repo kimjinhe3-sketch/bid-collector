@@ -484,7 +484,10 @@ p, .stMarkdown, body { color: var(--text-body); }
 /* ─── Hide Streamlit chrome (사이드바 toggle은 유지) ─── */
 footer { visibility: hidden; }
 #MainMenu { visibility: hidden; }
-[data-testid="stToolbar"] { display: none; }
+/* stToolbar 자체는 숨기지 않음 — 그 안에 stExpandSidebarButton(햄버거)가
+   있어서 숨기면 모바일에서 사이드바를 열 수 없음. 대신 안의 deploy/share
+   같은 Streamlit 자체 actions 만 숨김. */
+[data-testid="stToolbarActions"] { display: none !important; }
 [data-testid="stDecoration"] { display: none; }
 [data-testid="stAppDeployButton"] { display: none; }
 /* header는 그대로 — 사이드바 toggle이 거기 있음 */
