@@ -1101,13 +1101,13 @@ def main() -> None:
     config = load_config(ROOT / "config.yaml")
     db_path = ROOT / (config.get("database", {}).get("path") or "data/bids.sqlite")
 
-    # Run startup migrations (idempotent).
-    if db_path.exists():
-        try:
-            database.init_db(db_path)
-            invalidate_all_caches()
-        except Exception:
-            pass
+    # Always init DB (idempotent — CREATE TABLE IF NOT EXISTS) +
+    # run migrations. 빈 DB 라도 사이드바·UI 가 정상 렌더되도록.
+    try:
+        database.init_db(db_path)
+        invalidate_all_caches()
+    except Exception:
+        pass
 
     # ── Secret availability check (warn once per session) ──
     if not get_secret("G2B_SERVICE_KEY"):
@@ -1130,20 +1130,15 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
-    # ── First-run guard ────────────────────────────────────
-    if not db_path.exists():
-        st.info("아직 수집된 데이터가 없습니다. 아래 버튼을 눌러 수집을 시작하세요.")
-        if st.button("지금 수집", type="primary", use_container_width=True):
-            with st.status("공고 수집 중… 약 1~2분 소요됩니다.", expanded=True) as status:
-                def _stream(msg: str):
-                    st.write(msg)
-                ok, summary, _logs = run_collect_action(config, db_path,
-                                                         log_callback=_stream)
-                status.update(label=summary, state=("complete" if ok else "error"))
-            if not ok:
-                st.error("일부 소스 수집 실패. 위 로그를 확인하세요.")
-            st.rerun()
-        st.stop()
+    # ── First-run notice (DB 비어있어도 사이드바·UI 는 정상 렌더) ──
+    # st.stop() 을 쓰면 사이드바가 등록되지 않아 모바일 햄버거 버튼이
+    # 사라짐. 대신 안내만 표시하고 계속 진행 (사이드바의 '지금 수집' 사용).
+    if load_counts(str(db_path), None) == {}:
+        st.info(
+            "아직 수집된 데이터가 없습니다. "
+            "👈 좌측 사이드바의 **지금 수집** 버튼을 눌러주세요. "
+            "(모바일은 좌상단 햄버거 → 사이드바)"
+        )
 
     # ── Session state defaults ──
     # Live-reactive: 모든 필터 입력은 f_*_input key로 session_state에 자동 바인드.
