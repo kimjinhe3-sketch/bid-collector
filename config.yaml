@@ -7,7 +7,7 @@ collection:
     kwater_api: true     # 한국수자원공사 K-water (G2B 서비스키 공용, 4 오퍼레이션)
     kepco_api: true      # 한국전력공사 KEPCO (bigdata.kepco.co.kr 전용 키 필요)
     prvt_api: true       # 누리장터 민간입찰공고 (G2B 서비스키 공용, 4 오퍼레이션)
-  request_sleep_seconds: 0.5   # 페이지 간 대기 (너무 낮으면 rate limit 걸림)
+  request_sleep_seconds: 0.2   # 페이지 간 대기 (너무 낮으면 rate limit 걸림)
   page_size: 100
   lookback_days: 30   # 최근 N일간 공고 수집 (마감 안 지난 활성 공고는 보통 30일 이내 게시)
   alio:

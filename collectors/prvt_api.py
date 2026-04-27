@@ -191,6 +191,9 @@ def collect_all(
     now: datetime | None = None,
     http_client: Callable = http_get_json,
 ) -> list[dict]:
+    """4개 오퍼레이션(용역/물품/공사/기타)을 ThreadPoolExecutor 로 병렬."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     if not service_key:
         logger.warning("prvt_api: service key missing — skipping")
         return []
@@ -198,9 +201,10 @@ def collect_all(
     logger.info("prvt_api collection range: %s ~ %s", inqry_bgn, inqry_end)
 
     all_rows: list[dict] = []
-    for operation, source, bid_type in OPERATIONS:
+
+    def _one(operation: str, source: str, bid_type: str) -> list[dict]:
         try:
-            rows = _fetch_operation(
+            return _fetch_operation(
                 service_key=service_key,
                 operation=operation,
                 source=source,
@@ -211,7 +215,13 @@ def collect_all(
                 sleep_seconds=sleep_seconds,
                 http_client=http_client,
             )
-            all_rows.extend(rows)
         except Exception:
             logger.exception("prvt_api operation crashed: %s", operation)
+            return []
+
+    with ThreadPoolExecutor(max_workers=len(OPERATIONS)) as pool:
+        futures = [pool.submit(_one, op, src, bt)
+                   for op, src, bt in OPERATIONS]
+        for fut in as_completed(futures):
+            all_rows.extend(fut.result())
     return all_rows

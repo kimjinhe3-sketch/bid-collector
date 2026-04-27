@@ -147,14 +147,22 @@ def collect_all(
     now: datetime | None = None,
     http_client: Callable = http_get_json,
 ) -> list[dict]:
-    """Collect bids across all three operations for the lookback window."""
+    """Collect bids across all operations for the lookback window.
+
+    5개 오퍼레이션(물품/용역/공사/외자/기타)을 ThreadPoolExecutor 로 병렬 실행 →
+    sequential 대비 약 5배 빠름. 각 오퍼레이션 내부에선 페이지 sequential.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     inqry_bgn, inqry_end = _yesterday_range(now, lookback_days)
     logger.info("g2b_api collection range: %s ~ %s", inqry_bgn, inqry_end)
 
     all_rows: list[dict] = []
-    for source, (operation, bid_type) in OPERATIONS.items():
+    op_items = list(OPERATIONS.items())
+
+    def _one(source: str, operation: str, bid_type: str) -> list[dict]:
         try:
-            rows = fetch_operation(
+            return fetch_operation(
                 service_key=service_key,
                 operation=operation,
                 bid_type=bid_type,
@@ -165,7 +173,15 @@ def collect_all(
                 sleep_seconds=sleep_seconds,
                 http_client=http_client,
             )
-            all_rows.extend(rows)
         except Exception:
             logger.exception("g2b_api operation crashed: %s", operation)
+            return []
+
+    with ThreadPoolExecutor(max_workers=len(op_items)) as pool:
+        futures = [
+            pool.submit(_one, source, operation, bid_type)
+            for source, (operation, bid_type) in op_items
+        ]
+        for fut in as_completed(futures):
+            all_rows.extend(fut.result())
     return all_rows

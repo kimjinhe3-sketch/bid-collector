@@ -894,7 +894,8 @@ def render_kw_chips(include: list[str], exclude: list[str]) -> str:
 
 def run_collect_action(config: dict, db_path: Path,
                         log_callback=None,
-                        lookback_override: int | None = None) -> tuple[bool, str, list[str]]:
+                        lookback_override: int | None = None,
+                        status_update=None) -> tuple[bool, str, list[str]]:
     """Run collection in parallel (ThreadPoolExecutor).
 
     lookback_override 가 지정되면 config 의 lookback_days 대신 사용.
@@ -1037,6 +1038,7 @@ def run_collect_action(config: dict, db_path: Path,
     with ThreadPoolExecutor(max_workers=len(tasks)) as pool:
         futures = {pool.submit(_run_one, n, f): n for n, f in tasks}
         pending = set(futures)
+        n_total = len(futures)
         while pending:
             _drain_queue()
             done = {f for f in pending if f.done()}
@@ -1047,6 +1049,18 @@ def run_collect_action(config: dict, db_path: Path,
                     nm = futures.get(f, "?")
                     results.append((nm, [], 0.0, e))
             pending -= done
+            # 라이브 진행상황 업데이트 — 매 루프마다 status label 갱신
+            if status_update:
+                elapsed = _time.time() - t0
+                n_done = n_total - len(pending)
+                running = [futures[f] for f in pending][:3]
+                tail = (" · 진행중: " + ", ".join(running)) if running else ""
+                try:
+                    status_update(label=(
+                        f"⏱ {elapsed:.0f}s 경과 · {n_done}/{n_total} 완료{tail}"
+                    ))
+                except Exception:
+                    pass
             if pending:
                 _time.sleep(0.3)
         # 최종 drain (워커 종료 직후 남은 메시지)
@@ -1429,6 +1443,7 @@ def main() -> None:
                 ok, summary, _logs = run_collect_action(
                     config, db_path, log_callback=_stream,
                     lookback_override=lookback_v,
+                    status_update=status.update,  # 라이브 타이머
                 )
                 status.update(label=summary,
                               state=("complete" if ok else "error"))
