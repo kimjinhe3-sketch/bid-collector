@@ -53,7 +53,8 @@ SOURCE_GROUPS = {
         "prvt_api_cnstwk", "prvt_api_etc",
     ],
     "기타": [
-        "d2b_api_dmstc", "kepco_api", "alio",
+        "d2b_api_dmstc", "kepco_api", "alio", "lh_api",
+        "kec_api",  # 한국도로공사 (사용자 키 발급 후 활성)
         "kwater_api", "kwater_api_cntrwk", "kwater_api_gds",
         "kwater_api_servc", "kwater_api_dmscpt", "g2b_crawl",
     ],
@@ -78,6 +79,8 @@ SOURCE_LABELS = {
     "kwater_api_servc":  "K-water 용역",
     "kwater_api_dmscpt": "K-water 내자",
     "kepco_api":         "KEPCO",
+    "lh_api":            "LH (토지주택)",
+    "kec_api":           "한국도로공사",
 }
 
 
@@ -745,9 +748,75 @@ def _to_eok(price):
     return round(p / EOK, 2)
 
 
+SIDO_LIST = (
+    "서울", "경기", "인천", "부산", "대구", "광주", "대전", "울산", "세종",
+    "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주",
+)
+# 다양한 표기 → 정규화된 시도명 매핑 (org_name 첫 단어 매칭)
+SIDO_ALIASES: dict[str, str] = {
+    "서울특별시": "서울", "서울시": "서울", "서울": "서울",
+    "경기도": "경기", "경기": "경기",
+    "인천광역시": "인천", "인천시": "인천", "인천": "인천",
+    "부산광역시": "부산", "부산시": "부산", "부산": "부산",
+    "대구광역시": "대구", "대구시": "대구", "대구": "대구",
+    "광주광역시": "광주", "광주시": "광주", "광주": "광주",
+    "대전광역시": "대전", "대전시": "대전", "대전": "대전",
+    "울산광역시": "울산", "울산시": "울산", "울산": "울산",
+    "세종특별자치시": "세종", "세종시": "세종", "세종": "세종",
+    "강원특별자치도": "강원", "강원도": "강원", "강원": "강원",
+    "충청북도": "충북", "충북": "충북",
+    "충청남도": "충남", "충남": "충남",
+    "전북특별자치도": "전북", "전라북도": "전북", "전북": "전북",
+    "전라남도": "전남", "전남": "전남",
+    "경상북도": "경북", "경북": "경북",
+    "경상남도": "경남", "경남": "경남",
+    "제주특별자치도": "제주", "제주도": "제주", "제주": "제주",
+}
+
+
+def _extract_region(org_name) -> str:
+    """기관명에서 시도명 추출. 매칭 실패 시 '전국/기타' 반환.
+    예: '경상북도 의성군' → '경북'
+        '한국수자원공사' → '전국/기타'
+    """
+    if not isinstance(org_name, str) or not org_name.strip():
+        return "전국/기타"
+    head = org_name.strip().split()[0] if org_name.strip().split() else ""
+    return SIDO_ALIASES.get(head, "전국/기타")
+
+
+def _days_until(close_date_str, today=None) -> int | None:
+    """close_date 문자열 → 오늘부터 며칠 남았는지 (음수면 지남, None 이면 파싱 실패)."""
+    today = today or date.today()
+    d = _parse_open_date(close_date_str)
+    if d is None:
+        return None
+    return (d - today).days
+
+
+def _dn_label(close_date_str, today=None) -> str:
+    """마감 임박 D-n 배지 텍스트.
+    - 마감 지남 (n<0): '마감'
+    - 오늘 마감 (n=0): 'D-day'
+    - 1~7일: 'D-n'
+    - 8일 이상: 빈 문자열 (강조 불필요)
+    - 파싱 실패: 빈 문자열
+    """
+    n = _days_until(close_date_str, today)
+    if n is None:
+        return ""
+    if n < 0:
+        return "마감"
+    if n == 0:
+        return "D-day"
+    if n <= 7:
+        return f"D-{n}"
+    return ""
+
+
 def rows_to_dataframe(rows: list[dict]) -> pd.DataFrame:
-    cols = ["신규", "bid_no", "title", "org_name", "금액(억원)", "close_date",
-            "bid_type", "source_label", "detail_url"]
+    cols = ["신규", "마감임박", "bid_no", "title", "org_name", "지역",
+            "금액(억원)", "close_date", "bid_type", "source_label", "detail_url"]
     if not rows:
         return pd.DataFrame(columns=cols)
     df = pd.DataFrame(rows)
@@ -766,7 +835,6 @@ def rows_to_dataframe(rows: list[dict]) -> pd.DataFrame:
                 df["detail_url"], sources_col, bidnos_col, df["title"]
             )
         ]
-    # "신규" 배지 — 오늘 올라온 공고만 "N"
     today = date.today()
     if "open_date" in df.columns:
         df["신규"] = df["open_date"].apply(
@@ -774,6 +842,18 @@ def rows_to_dataframe(rows: list[dict]) -> pd.DataFrame:
         )
     else:
         df["신규"] = ""
+    # 마감임박 D-n 배지
+    if "close_date" in df.columns:
+        df["마감임박"] = df["close_date"].apply(
+            lambda s: _dn_label(s, today)
+        )
+    else:
+        df["마감임박"] = ""
+    # 지역 (org_name 첫 단어 → 시도)
+    if "org_name" in df.columns:
+        df["지역"] = df["org_name"].apply(_extract_region)
+    else:
+        df["지역"] = "전국/기타"
     return df[[c for c in cols if c in df.columns]]
 
 
@@ -904,7 +984,8 @@ def run_collect_action(config: dict, db_path: Path,
     import time as _time
     from concurrent.futures import ThreadPoolExecutor
     from collectors import (g2b_api, alio_crawler,
-                            d2b_api, kwater_api, kepco_api, prvt_api)
+                            d2b_api, kwater_api, kepco_api, prvt_api,
+                            lh_api)
     from db import database as dbmod
 
     sleep = float(config.get("collection", {}).get("request_sleep_seconds", 0.5))
@@ -998,6 +1079,23 @@ def run_collect_action(config: dict, db_path: Path,
                 lookback_days=lookback,
             )))
 
+    if sources.get("lh_api"):
+        lh_key = get_secret("LH_SERVICE_KEY")
+        if not lh_key:
+            _log("⏩ LH (토지주택): LH_SERVICE_KEY 없음 — skip "
+                 "(data.go.kr 15021183 자동승인 키 발급 필요)")
+        else:
+            tasks.append(("LH (토지주택)", lambda k=lh_key: lh_api.collect(
+                service_key=k, page_size=page_size,
+                sleep_seconds=sleep, lookback_days=lookback,
+            )))
+
+    # 한국도로공사 — 사용자 키 발급 후 활성. data.ex.co.kr 자체 portal.
+    # if sources.get("kec_api"):
+    #     kec_key = get_secret("KEC_SERVICE_KEY")
+    #     if not kec_key: _log("⏩ 도로공사: KEC_SERVICE_KEY 없음")
+    #     else: tasks.append(("도로공사", lambda k=kec_key: kec_api.collect(...)))
+
     if not tasks:
         summary = "수집할 소스가 없습니다."
         return False, summary, log_lines
@@ -1083,14 +1181,34 @@ def run_collect_action(config: dict, db_path: Path,
     return len(errors) == 0, summary, log_lines
 
 
-def run_notify_action(config: dict, db_path: Path, dry_run: bool = True) -> tuple[int, str]:
+def run_notify_action(config: dict, db_path: Path,
+                       dry_run: bool = True,
+                       dday_threshold: int | None = None) -> tuple[int, str]:
+    """알림 발송 / 미리보기.
+    dday_threshold 가 주어지면 마감일이 N일 이내인 공고만 대상.
+    None 이면 기존 키워드 필터만.
+    """
     from notifiers import email_notifier, slack_notifier
     from db import database as dbmod
 
     rows = dbmod.get_unnotified(db_path)
     filtered = keyword_filter.apply_filters(rows, config.get("filters") or {})
+
+    # D-n 임계 적용
+    if dday_threshold is not None:
+        _today = date.today()
+        def _within(r):
+            n = _days_until(r.get("close_date"), _today)
+            return n is not None and 0 <= n <= dday_threshold
+        filtered = [r for r in filtered if _within(r)]
+
+    label_suffix = f" (D-{dday_threshold} 이내)" if dday_threshold is not None else ""
     if dry_run:
-        return len(filtered), f"미리보기: {len(filtered):,}건이 알림 대상입니다. (전송은 하지 않음)"
+        return len(filtered), (f"미리보기: {len(filtered):,}건이 알림 대상입니다"
+                                f"{label_suffix}. 전송은 하지 않음.")
+
+    if not filtered:
+        return 0, f"발송 대상 없음{label_suffix}."
 
     channels = (config.get("notifier") or {}).get("channels") or []
     # 수신자: config + data/recipients.json 병합
@@ -1107,7 +1225,8 @@ def run_notify_action(config: dict, db_path: Path, dry_run: bool = True) -> tupl
     if sent:
         dbmod.mark_notified(db_path, [r["id"] for r in filtered])
         invalidate_all_caches()
-    return len(filtered), ("전송 완료" if sent else "전송 실패 (설정을 확인하세요)")
+    return len(filtered), (f"{len(filtered):,}건 전송 완료{label_suffix}"
+                            if sent else "전송 실패 (Secrets/설정 확인)")
 
 
 # ────────────────────────────────────────────────────────────────
@@ -1281,14 +1400,20 @@ def main() -> None:
     default_types = [t for t in cfg_types if t in bid_type_options]
 
     _init_min_eok = int(cfg_filters.get("min_amount_eok") or 0)
-    _init_max_eok = int(cfg_filters.get("max_amount_eok") or 9999)
+    _init_max_eok_raw = int(cfg_filters.get("max_amount_eok") or 100)
+    # max 가 100 보다 크면 'unbounded' 로 해석, UI 박스는 100 으로
+    _init_max_eok = min(100, _init_max_eok_raw)
+    _init_unbounded = (_init_max_eok_raw > 100)
     _filter_defaults = {
         "f_bid_types_input": default_types,
         "f_keyword_input": "",
         "f_org_query_input": "",
         "f_include_text_input": ", ".join(cfg_include),
         "f_exclude_text_input": ", ".join(cfg_exclude),
-        "f_amount_slider_input": (_init_min_eok, _init_max_eok),
+        "f_amount_min_input": _init_min_eok,
+        "f_amount_max_input": _init_max_eok,
+        "f_amount_unbounded_input": _init_unbounded,
+        "f_region_input": [],   # 빈 = 전체
         # 공고일 범위 — 기본: 최근 30일
         "f_date_range_input": (today - timedelta(days=30), today),
     }
@@ -1382,6 +1507,11 @@ def main() -> None:
                       key="f_keyword_input", placeholder="예: 전기공사")
         st.text_input("기관명 검색",
                       key="f_org_query_input", placeholder="예: 교육청")
+        # 참여지역 필터 — 시도 multiselect (빈 선택=전체)
+        st.multiselect("참여지역 (시·도)", list(SIDO_LIST) + ["전국/기타"],
+                       key="f_region_input",
+                       help="선택한 시·도의 발주만 표시. "
+                            "비워두면 전체. '전국/기타' = 시·도 추출 안 되는 공고")
 
         st.markdown("**공고명 포함 키워드** (제목 기준, 하나라도 있으면 통과)")
         st.text_area("include_keywords", key="f_include_text_input", height=70,
@@ -1396,12 +1526,26 @@ def main() -> None:
         st.markdown(render_kw_chips(preview_inc, preview_exc),
                     unsafe_allow_html=True)
 
-        st.slider("금액 범위 (억원)", 0, 9999, key="f_amount_slider_input", step=1)
+        # 금액 범위 — number_input 타이핑 가능, 0~100억 + '100억 이상 포함' 옵션
+        st.markdown("**금액 범위 (억원)**")
+        _amt_c1, _amt_c2 = st.columns(2)
+        with _amt_c1:
+            st.number_input("최소", min_value=0, max_value=100, step=1,
+                            key="f_amount_min_input",
+                            help="단위: 억원")
+        with _amt_c2:
+            st.number_input("최대", min_value=0, max_value=100, step=1,
+                            key="f_amount_max_input",
+                            help="단위: 억원")
+        st.checkbox("100억 이상도 포함",
+                    key="f_amount_unbounded_input",
+                    help="체크 시 위 '최대' 값을 무시하고 상한 없음")
 
-        # 마감 안 지난 입찰 진행중 공고만 표시 (기본 ON)
-        st.checkbox("입찰 진행중인 공고만",
+        # 마감/개찰 안 지난 활성 공고만 표시 (기본 ON)
+        st.checkbox("진행중인 공고만 (마감·개찰 지난 것 제외)",
                     key="f_active_only_input",
-                    help="마감일이 오늘 이후인 공고만 표시 (마감 지난 공고 제외)")
+                    help="마감일이 오늘 이후인 공고만 표시. "
+                         "이미 입찰 마감되어 개찰 완료된 공고는 자동 제외.")
 
         # 필터 기본값 복원 — on_click 콜백 (widget key에 직접 할당 불가)
         def _reset_filters_cb():
@@ -1452,9 +1596,34 @@ def main() -> None:
                 st.error("일부 소스 수집 실패. 위 로그를 확인하세요.")
             st.rerun()
 
-        if st.button("알림 미리보기 (dry-run)", width="stretch"):
-            count, msg = run_notify_action(config, db_path, dry_run=True)
-            st.success(msg) if count else st.info(msg)
+        # ── 마감 임박 알림 임계 ──
+        st.markdown("---")
+        st.markdown("### 마감 임박 알림")
+        st.slider("D-n 임계 (n일 이내 마감 시 알림)",
+                  min_value=1, max_value=14, value=3,
+                  key="f_dday_threshold_input",
+                  help="설정한 일수 이내에 마감되는 공고만 알림 메일 대상")
+        st.caption("📧 메일링은 SMTP_USER / SMTP_PASS Secret + 아래 수신자 등록 필요. "
+                   "셋업 후 'D-n 알림 미리보기' 로 발송 대상 확인.")
+
+        _btn_c1, _btn_c2 = st.columns(2)
+        with _btn_c1:
+            if st.button("D-n 알림 미리보기", width="stretch",
+                         key="dn_notify_preview"):
+                _dn_n = int(st.session_state.get("f_dday_threshold_input", 3))
+                count, msg = run_notify_action(config, db_path, dry_run=True,
+                                                dday_threshold=_dn_n)
+                st.success(msg) if count else st.info(msg)
+        with _btn_c2:
+            if st.button("D-n 알림 발송", width="stretch", type="primary",
+                         key="dn_notify_send"):
+                _dn_n = int(st.session_state.get("f_dday_threshold_input", 3))
+                count, msg = run_notify_action(config, db_path, dry_run=False,
+                                                dday_threshold=_dn_n)
+                if count:
+                    st.success(f"📤 {msg}")
+                else:
+                    st.warning(msg)
 
         # ── 메일링 수신자 관리 ──
         st.markdown("---")
@@ -1547,8 +1716,11 @@ def main() -> None:
     org_v = st.session_state["f_org_query_input"]
     applied_include = [k.strip() for k in st.session_state["f_include_text_input"].split(",") if k.strip()]
     applied_exclude = [k.strip() for k in st.session_state["f_exclude_text_input"].split(",") if k.strip()]
-    lo_hi = st.session_state["f_amount_slider_input"]
-    min_eok, max_eok = lo_hi[0], lo_hi[1]
+    min_eok = float(st.session_state.get("f_amount_min_input", 0) or 0)
+    if st.session_state.get("f_amount_unbounded_input", False):
+        max_eok = 99999.0  # 사실상 상한 없음
+    else:
+        max_eok = float(st.session_state.get("f_amount_max_input", 100) or 100)
     row_limit = 1_000_000  # 제한 없음 (사용자 요청)
 
     # 공고일 범위 파싱 (st.date_input range는 tuple/list 또는 single date)
@@ -1586,6 +1758,13 @@ def main() -> None:
                 return True   # 마감일 파싱 실패 시 보수적으로 포함
             return d >= _today
         rows = [r for r in rows if _is_active(r)]
+
+    # 참여지역 필터 (org_name 첫 단어 → 시도)
+    region_sel = st.session_state.get("f_region_input") or []
+    if region_sel:
+        region_set = set(region_sel)
+        rows = [r for r in rows
+                if _extract_region(r.get("org_name")) in region_set]
 
     filter_cfg = {
         "include_keywords": applied_include,
@@ -1636,9 +1815,25 @@ def main() -> None:
                 return ("background-color: #FFF59D; color: #000000; "
                         "font-weight: 800; text-align: center;")
             return ""
+
+        # 마감임박 D-n 셀 색상: D-day/D-1 빨강, D-2~3 주황, D-4~7 노랑, '마감' 회색
+        def _style_dn(v):
+            if not isinstance(v, str) or not v:
+                return ""
+            base = "font-weight:700; text-align:center;"
+            if v == "마감":
+                return base + " background-color:#E5E7EB; color:#6B7280;"
+            if v in ("D-day", "D-1"):
+                return base + " background-color:#FECACA; color:#991B1B;"
+            if v in ("D-2", "D-3"):
+                return base + " background-color:#FED7AA; color:#9A3412;"
+            return base + " background-color:#FEF3C7; color:#92400E;"
+
         _styler = df.style
         _apply = getattr(_styler, "map", None) or _styler.applymap
         styled = _apply(_style_new, subset=["신규"])
+        if "마감임박" in df.columns:
+            styled = _apply(_style_dn, subset=["마감임박"])
 
         st.dataframe(
             styled,
@@ -1649,12 +1844,17 @@ def main() -> None:
             hide_index=True,
             column_config={
                 "신규": st.column_config.TextColumn(
-                    "신규", width=55,  # 픽셀 단위 — small(~100)의 약 절반
+                    "신규", width=55,
                     help="오늘 올라온 공고는 'new' 로 표시",
+                ),
+                "마감임박": st.column_config.TextColumn(
+                    "마감임박", width=70,
+                    help="마감일 7일 이내 공고에 D-n 배지 표시",
                 ),
                 "bid_no": st.column_config.TextColumn("공고번호", width="small"),
                 "title": st.column_config.TextColumn("제목", width="large"),
                 "org_name": st.column_config.TextColumn("기관", width="medium"),
+                "지역": st.column_config.TextColumn("지역", width=70),
                 "금액(억원)": st.column_config.NumberColumn(
                     "금액(억원)", format="%.2f", width="small",
                     help="빈 칸은 공고문 내 '금액 링크 참조'. 정렬 시 자동으로 최하단.",

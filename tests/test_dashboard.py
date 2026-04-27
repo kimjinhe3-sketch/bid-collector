@@ -1,8 +1,65 @@
 """Test dashboard helper functions without launching Streamlit runtime."""
+from datetime import date, timedelta
+
 import pandas as pd
 
 from dashboard import app as dashboard
 from db import database
+
+
+# ─────────────── Region extraction (④) ───────────────
+
+def test_extract_region_basic():
+    assert dashboard._extract_region("서울특별시 강남구") == "서울"
+    assert dashboard._extract_region("경기도 화성시") == "경기"
+    assert dashboard._extract_region("부산광역시 해운대구") == "부산"
+    assert dashboard._extract_region("충청북도 청주시") == "충북"
+    assert dashboard._extract_region("전북특별자치도 전주시") == "전북"
+    assert dashboard._extract_region("강원특별자치도 춘천시") == "강원"
+
+
+def test_extract_region_unknown_returns_default():
+    assert dashboard._extract_region("한국수자원공사") == "전국/기타"
+    assert dashboard._extract_region("") == "전국/기타"
+    assert dashboard._extract_region(None) == "전국/기타"
+
+
+# ─────────────── D-n countdown (③) ───────────────
+
+def test_dn_label_categories():
+    today = date(2026, 5, 1)
+    # 마감 지남
+    assert dashboard._dn_label("2026-04-30", today) == "마감"
+    # 오늘 마감
+    assert dashboard._dn_label("2026-05-01", today) == "D-day"
+    # D-1 ~ D-7
+    assert dashboard._dn_label("2026-05-02", today) == "D-1"
+    assert dashboard._dn_label("2026-05-03 14:00", today) == "D-2"
+    assert dashboard._dn_label("2026-05-08", today) == "D-7"
+    # 8일 이상 → 빈 문자열
+    assert dashboard._dn_label("2026-05-09", today) == ""
+    # 파싱 실패
+    assert dashboard._dn_label("garbage", today) == ""
+    assert dashboard._dn_label(None, today) == ""
+
+
+def test_days_until():
+    today = date(2026, 5, 1)
+    assert dashboard._days_until("2026-05-04", today) == 3
+    assert dashboard._days_until("2026-04-28", today) == -3
+    assert dashboard._days_until("2026-05-01 23:59", today) == 0
+    assert dashboard._days_until("invalid", today) is None
+
+
+def test_rows_to_dataframe_includes_region_and_dday_columns():
+    rows = [_row(1, source="g2b_api_thng")]
+    rows[0]["org_name"] = "경기도 성남시"
+    rows[0]["close_date"] = (date.today() + timedelta(days=2)).strftime("%Y-%m-%d")
+    df = dashboard.rows_to_dataframe(rows)
+    assert "지역" in df.columns
+    assert "마감임박" in df.columns
+    assert df["지역"].iloc[0] == "경기"
+    assert df["마감임박"].iloc[0] == "D-2"
 
 
 def _row(n, source="g2b_api_thng", price=500_000_000, bid_type="용역"):
@@ -208,6 +265,7 @@ def test_source_labels_cover_known_sources():
         "kwater_api_cntrwk", "kwater_api_gds",
         "kwater_api_servc", "kwater_api_dmscpt",
         "kepco_api",
+        "lh_api", "kec_api",   # 신규: 한국토지주택공사 + 한국도로공사
     }
     assert expected == set(dashboard.SOURCE_LABELS.keys())
 

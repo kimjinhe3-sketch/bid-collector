@@ -7,6 +7,7 @@ collection:
     kwater_api: true     # 한국수자원공사 K-water (G2B 서비스키 공용, 4 오퍼레이션)
     kepco_api: true      # 한국전력공사 KEPCO (bigdata.kepco.co.kr 전용 키 필요)
     prvt_api: true       # 누리장터 민간입찰공고 (G2B 서비스키 공용, 4 오퍼레이션)
+  lh_api: true         # 한국토지주택공사 입찰공고정보 (data.go.kr 15021183, 별도 LH_SERVICE_KEY)
   request_sleep_seconds: 0.2   # 페이지 간 대기 (너무 낮으면 rate limit 걸림)
   page_size: 999    # G2B 표준 최대 (이전 100 → 99% 페이지 감소)
   lookback_days: 14   # G2B 가 30일이면 5만건 = 너무 많음 → 14일 안전
