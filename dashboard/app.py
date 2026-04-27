@@ -854,6 +854,21 @@ def rows_to_dataframe(rows: list[dict]) -> pd.DataFrame:
         df["지역"] = df["org_name"].apply(_extract_region)
     else:
         df["지역"] = "전국/기타"
+
+    # 기본 정렬: 마감 임박 순 (D-DAY → D-1 → ... → D-7 → 그 이후)
+    # close_date 포맷 혼재 (ISO / "YYYY.MM.DD" / "YYYYMMDD") → _parse_open_date 로 정규화
+    # 마감일 파싱 실패 / NULL 인 row 는 가장 뒤로
+    from datetime import date as _date_type
+    _far = _date_type(9999, 1, 1)
+    if "close_date" in df.columns:
+        df = df.sort_values(
+            by="close_date",
+            key=lambda col: col.apply(
+                lambda s: _parse_open_date(s) or _far
+            ),
+            kind="stable",
+        ).reset_index(drop=True)
+
     return df[[c for c in cols if c in df.columns]]
 
 
