@@ -87,11 +87,6 @@ SOURCE_LABELS = {
 
 CUSTOM_CSS = """
 <style>
-/* Material Icons / Symbols 폰트 강제 로드 — Streamlit Cloud 모바일 wrapper
-   에서 자체 폰트가 누락되는 경우 대비. @import 는 style 블록 최상단 필수. */
-@import url("https://fonts.googleapis.com/icon?family=Material+Icons");
-@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&display=block");
-
 /* ─────────────── Design spec (warm coral palette) ─────────────── */
 :root {
   /* Primary action */
@@ -1055,6 +1050,19 @@ def main() -> None:
       try {
         var p = window.parent;
         if (!p || !p.document) return;
+        // === Material Icons 폰트 CDN 주입 (parent <head>) ===
+        // Streamlit Cloud 모바일에서 자체 폰트가 안 들어와 ligature 가
+        // raw 텍스트로 보이는 문제 해결. 부모 document 에 직접 link 추가.
+        if (!p.__bidIconsLoaded) {
+          p.__bidIconsLoaded = true;
+          ['https://fonts.googleapis.com/icon?family=Material+Icons',
+           'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&display=block'
+          ].forEach(function(href){
+            var l = p.document.createElement('link');
+            l.rel = 'stylesheet'; l.href = href;
+            p.document.head.appendChild(l);
+          });
+        }
         // 매 rerun 마다 재설치 (Streamlit 이 DOM 을 재렌더 할 때 listener 가
         // 남아있어도 중복 호출만 발생 — 상단에 removeEventListener 시도).
         if (p.__bidTouchCleanup) { try { p.__bidTouchCleanup(); } catch(_){} }
