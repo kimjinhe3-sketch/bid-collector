@@ -401,6 +401,56 @@ p, .stMarkdown, body { color: var(--text-body); }
 /* ─── Checkboxes ─── */
 [data-testid="stCheckbox"] label { font-size: 0.9rem; font-weight: 500; }
 
+/* ─── 소스 필터 섹션 헤딩 ─── */
+.src-section-title {
+  font-family: "Pretendard Variable", Pretendard, sans-serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 0 0 0.4rem 0;
+  padding: 0;
+}
+
+/* ─── 모바일: 소스 필터 섹션 컴팩트화 ─── */
+@media (max-width: 768px) {
+  /* 섹션 헤딩 숨김 — 카운트 캡션이 충분히 정보 전달 */
+  .st-key-src_filter_section .src-section-title {
+    display: none !important;
+  }
+  /* 컬럼 row 의 모든 child container margin 0, gap 축소 */
+  .st-key-src_filter_section [data-testid="stHorizontalBlock"] {
+    gap: 0.3rem !important;
+    flex-wrap: nowrap !important;
+  }
+  .st-key-src_filter_section [data-testid="stColumn"] {
+    min-width: 0 !important;
+    padding: 0 !important;
+  }
+  .st-key-src_filter_section [data-testid="stElementContainer"] {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  /* 체크박스 — 라벨 작게, padding 축소, 한 줄에 3개 */
+  .st-key-src_filter_section [data-testid="stCheckbox"] {
+    padding: 2px 0 !important;
+  }
+  .st-key-src_filter_section [data-testid="stCheckbox"] label {
+    font-size: 0.72rem !important;
+    line-height: 1.2 !important;
+  }
+  .st-key-src_filter_section [data-testid="stCheckbox"] label > div {
+    gap: 4px !important;
+  }
+  /* 버튼 (전체/해제) — 작고 짧게 */
+  .st-key-src_filter_section [data-testid="stButton"] button {
+    padding: 4px 6px !important;
+    font-size: 0.72rem !important;
+    min-height: 30px !important;
+    height: 30px !important;
+    line-height: 1 !important;
+  }
+}
+
 /* ─── 표 타이틀바 (윈도우 창 스타일 · 표에 일체화) ─── */
 .st-key-bidtable_titlebar {
   background: transparent !important;
@@ -1228,7 +1278,6 @@ def main() -> None:
     # _tab_ctx = tab_bid.__enter__()
 
     # ── Section 1: 상단 그룹 필터 체크박스 (중복 선택 가능) ──
-    st.markdown("### 오늘의 수집 현황")
     today_counts = load_counts(str(db_path), today.isoformat())
     total_counts = load_counts(str(db_path), None)
 
@@ -1245,16 +1294,20 @@ def main() -> None:
         for _g in SOURCE_GROUPS:
             st.session_state[f"mcard_{_g}"] = False
 
-    cbx_cols = st.columns([1.3, 1.3, 1.3, 1, 1])
-    for i, g in enumerate(SOURCE_GROUPS.keys()):
-        cbx_cols[i].checkbox(f"{g} ({group_counts.get(g, 0):,})",
-                              key=f"mcard_{g}")
-    cbx_cols[3].button("전체", width="stretch", key="mcard_all_btn",
-                        on_click=_select_all_groups,
-                        help="3개 그룹 모두 체크 (전체 표시와 동일)")
-    cbx_cols[4].button("해제", width="stretch", key="mcard_clear_btn",
-                        on_click=_clear_all_groups,
-                        help="모두 해제 (= 전체 표시)")
+    # 전체 섹션을 container 로 감싸 모바일 컴팩트 CSS 스코프 만듦
+    with st.container(key="src_filter_section"):
+        st.markdown("<div class='src-section-title'>오늘의 수집 현황</div>",
+                    unsafe_allow_html=True)
+        cbx_cols = st.columns([1.3, 1.3, 1.3, 1, 1])
+        for i, g in enumerate(SOURCE_GROUPS.keys()):
+            cbx_cols[i].checkbox(f"{g} ({group_counts.get(g, 0):,})",
+                                  key=f"mcard_{g}")
+        cbx_cols[3].button("전체", width="stretch", key="mcard_all_btn",
+                            on_click=_select_all_groups,
+                            help="3개 그룹 모두 체크 (전체 표시와 동일)")
+        cbx_cols[4].button("해제", width="stretch", key="mcard_clear_btn",
+                            on_click=_clear_all_groups,
+                            help="모두 해제 (= 전체 표시)")
 
     # 체크된 그룹들의 소스 유니언 → source_filter
     # - 전부 체크 (= 전체 버튼) : 전체 표시
