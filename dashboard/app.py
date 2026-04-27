@@ -321,9 +321,22 @@ p, .stMarkdown, body { color: var(--text-body); }
 [data-testid="baseButton-headerNoPadding"],
 [data-testid="stBaseButton-headerNoPadding"] {
   visibility: visible !important;
-  display: flex !important;
+  display: inline-flex !important;
   opacity: 1 !important;
   pointer-events: auto !important;
+  /* 아이콘 폰트가 늦게 로드되어도 button 이 collapse 되지 않도록 최소 크기 보장 */
+  min-width: 32px !important;
+  min-height: 32px !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+/* 햄버거 button 안 SVG/icon span 도 최소 크기 보장 */
+[data-testid="stExpandSidebarButton"] > *,
+[data-testid="stSidebarCollapseButton"] > *,
+[data-testid="stSidebarCollapsedControl"] > *,
+[data-testid="collapsedControl"] > * {
+  min-width: 18px;
+  min-height: 18px;
 }
 /* 태블릿 (≤ 900px): 사이드바 살짝 좁게 */
 @media (max-width: 900px) {
