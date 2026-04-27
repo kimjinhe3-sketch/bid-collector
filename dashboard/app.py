@@ -340,30 +340,24 @@ p, .stMarkdown, body { color: var(--text-body); }
     min-width: 0 !important;
     max-width: 85vw !important;
   }
-  /* 사이드바가 접혔을 때 햄버거를 눈에 띄게 — 좌상단 floating
-     Streamlit 1.56 은 stExpandSidebarButton 이 햄버거 역할 */
+  /* 햄버거 버튼은 Streamlit 기본 위치 (stHeader 안 좌상단) 그대로.
+     우리는 강조만 — 테두리/배경/아이콘 색만 부여하고 크기·위치는 건드리지 않음
+     (이전에 position:fixed 로 옮기려다 button 이 0×0 이 됨) */
   [data-testid="collapsedControl"],
   [data-testid="stSidebarCollapsedControl"],
   [data-testid="stExpandSidebarButton"] {
-    position: fixed !important;
-    top: 8px !important;
-    left: 8px !important;
-    z-index: 9999 !important;
     background: var(--bg-surface) !important;
     border: 1px solid var(--accent) !important;
-    border-radius: 10px !important;
-    padding: 6px 10px !important;
-    box-shadow: 0 2px 10px rgba(216, 90, 48, 0.18) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 6px rgba(216, 90, 48, 0.18) !important;
   }
-  [data-testid="collapsedControl"] svg,
-  [data-testid="stSidebarCollapsedControl"] svg,
+  /* 아이콘 색만 강조 (크기는 Streamlit 기본 유지) */
   [data-testid="stExpandSidebarButton"] svg,
   [data-testid="stExpandSidebarButton"] [data-testid="stIconMaterial"] {
-    width: 22px !important;
-    height: 22px !important;
-    font-size: 22px !important;
     color: var(--accent) !important;
   }
+  /* 모바일에서 stHeader 가 표시 영역 위로 가도록 z-index */
+  [data-testid="stHeader"] { z-index: 999 !important; }
   /* 사이드바 내부 폰트·여백 축소 */
   [data-testid="stSidebar"] .block-container {
     padding: 0.6rem 0.6rem !important;
