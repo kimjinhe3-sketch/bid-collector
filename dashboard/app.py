@@ -1298,7 +1298,7 @@ def main() -> None:
         "mcard_누리장터": True,
         "mcard_기타": True,
         # 수집 범위 — 기본 7일
-        "f_collect_lookback_input": int(config.get("collection", {}).get("lookback_days", 30)),
+        "f_collect_lookback_input": int(config.get("collection", {}).get("lookback_days", 14)),
         # 마감 안 지난 활성 공고만 표시 (기본 ON)
         "f_active_only_input": True,
     }
@@ -1426,16 +1426,17 @@ def main() -> None:
             invalidate_all_caches()
             st.rerun()
 
-        # 수집 범위 — 슬라이더로 사용자 지정 (기본 30일, 누리장터 등 마감
-        # 안 지난 활성 공고 충분히 잡으려면 30일 권장)
-        st.slider("수집 범위 (일)", min_value=1, max_value=90, value=30,
+        # 수집 범위 — 슬라이더로 사용자 지정 (기본 14일).
+        # 30일 G2B = 5만건 = 22분+ → 14일 안전, page_size 999 로 빠름.
+        st.slider("수집 범위 (일)", min_value=1, max_value=30, value=14,
                   key="f_collect_lookback_input",
-                  help="오늘 기준 과거 N일 동안 올라온 공고를 수집")
+                  help="오늘 기준 과거 N일 동안 올라온 공고. "
+                       "30일 = G2B 5만건 → 오래 걸림. 14일 권장.")
 
         # 수집하기 (아래) — 외부 API 호출
         if st.button("지금 수집", width="stretch", type="secondary",
                      key="collect_btn"):
-            lookback_v = int(st.session_state.get("f_collect_lookback_input", 30))
+            lookback_v = int(st.session_state.get("f_collect_lookback_input", 14))
             with st.status(f"공고 수집 중 (최근 {lookback_v}일)… 약 1~2분 소요됩니다.",
                            expanded=True) as status:
                 def _stream(msg: str):
