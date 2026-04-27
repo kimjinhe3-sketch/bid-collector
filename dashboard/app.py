@@ -1077,19 +1077,20 @@ def main() -> None:
         // 남아있어도 중복 호출만 발생 — 상단에 removeEventListener 시도).
         if (p.__bidTouchCleanup) { try { p.__bidTouchCleanup(); } catch(_){} }
 
-        var sx = 0, sy = 0, tracking = false;
+        var sx = 0, sy = 0, tracking = false, decided = false, isVertical = false;
 
         var onStart = function(e){
           if (!e.touches || !e.touches[0]) return;
           sx = e.touches[0].clientX;
           sy = e.touches[0].clientY;
           tracking = true;
+          decided = false;
+          isVertical = false;
         };
         var onMove = function(e){
           if (!tracking || !e.touches || !e.touches[0]) return;
           var t = e.target;
           var inDf = false;
-          // target → ancestor 체크. shadow dom 도 따라 올라감.
           while (t) {
             if (t.getAttribute && (
                 t.getAttribute('data-testid') === 'stDataFrame' ||
@@ -1102,15 +1103,26 @@ def main() -> None:
           if (!inDf) return;
           var dx = Math.abs(e.touches[0].clientX - sx);
           var dy = Math.abs(e.touches[0].clientY - sy);
-          if (dy > dx * 1.0) {
-            // 세로 우세 → 페이지 스크롤을 살림:
-            //   a) grid 의 preventDefault 핸들러가 뒤에 돌지 못하게 stop
-            //   b) passive:false 로 등록했기에 필요 시 preventDefault 호출 가능
-            //      그러나 여기선 브라우저 기본 스크롤을 허용해야 하므로 생략
+          // 한 번 방향 결정되면 끝까지 유지 (제스처 중간에 흔들림 방지).
+          // 결정 임계: 누적 이동 12px 이상 + 명확한 비율 (1.5:1)
+          if (!decided) {
+            if (dx + dy < 12) return;  // 너무 작은 움직임은 판단 보류
+            if (dy > dx * 1.5) {
+              isVertical = true;       // 세로 우세 — 페이지 스크롤
+            } else if (dx > dy * 1.2) {
+              isVertical = false;      // 가로 우세 — grid 컬럼 스크롤
+            } else {
+              return;                  // 애매하면 한 프레임 더 기다림
+            }
+            decided = true;
+          }
+          if (isVertical) {
+            // 세로: grid handler 차단 → 브라우저 기본 페이지 스크롤
             e.stopImmediatePropagation();
           }
+          // 가로: 아무것도 하지 않음 → grid 가 정상 처리
         };
-        var onEnd = function(){ tracking = false; };
+        var onEnd = function(){ tracking = false; decided = false; };
 
         // 최대한 상위 (capture) 에서 잡는다
         var targets = [p.window, p.document, p.document.documentElement, p.document.body];
