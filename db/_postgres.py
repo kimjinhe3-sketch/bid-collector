@@ -165,21 +165,37 @@ def upsert_bids(_db_path, rows: Iterable[dict]) -> tuple[int, int]:
         f"ON CONFLICT (source, bid_no) DO UPDATE SET {update_clause}"
     )
 
-    processed = 0
+    # 유효성 검증 + payload 정리
+    payloads = []
     skipped = 0
+    for r in rows:
+        if not r.get("source") or not r.get("bid_no") or not r.get("title"):
+            skipped += 1
+            continue
+        payloads.append({c: r.get(c) for c in cols})
+
+    if not payloads:
+        return 0, skipped
+
+    # Batch upsert — execute_batch 가 INSERT 을 청크로 묶어 보내서
+    # round-trip 수를 페이지 크기만큼 줄임 (개별 execute 대비 5~20x 빠름).
+    processed = 0
     with connect() as conn:
         with conn.cursor() as cur:
-            for r in rows:
-                if not r.get("source") or not r.get("bid_no") or not r.get("title"):
-                    skipped += 1
-                    continue
-                payload = {c: r.get(c) for c in cols}
-                try:
-                    cur.execute(sql, payload)
-                    processed += 1
-                except psycopg2.Error:
-                    logger.exception("upsert failed for bid_no=%s", r.get("bid_no"))
-                    skipped += 1
+            try:
+                psycopg2.extras.execute_batch(cur, sql, payloads, page_size=200)
+                processed = len(payloads)
+            except psycopg2.Error:
+                logger.exception("batch upsert failed — falling back to per-row")
+                # Fallback: 개별 처리해서 어느 row 가 깨졌는지 격리
+                for p in payloads:
+                    try:
+                        cur.execute(sql, p)
+                        processed += 1
+                    except psycopg2.Error:
+                        logger.exception("row upsert failed bid_no=%s", p.get("bid_no"))
+                        skipped += 1
+
     logger.info("upsert_bids[postgres]: processed=%d skipped=%d", processed, skipped)
     return processed, skipped
 
