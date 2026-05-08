@@ -1,220 +1,41 @@
+"""DB 백엔드 dispatch.
+
+DATABASE_URL 환경변수가 있으면 Postgres (Supabase) 백엔드,
+없으면 SQLite 백엔드를 사용한다. 모든 함수는 두 백엔드의 동일 함수에
+그대로 위임 — 호출자 코드는 변경 없음.
+
+실행 시점에 환경변수를 확인하므로 .env 로드 이후라면 자동 분기.
+"""
 from __future__ import annotations
 
-import sqlite3
-from contextlib import contextmanager
-from pathlib import Path
-from typing import Iterable
-
-from utils.logger import get_logger
-
-logger = get_logger("bid_collector.db")
-
-SCHEMA_PATH = Path(__file__).parent / "schema.sql"
-
-COLUMNS = (
-    "source",
-    "bid_no",
-    "title",
-    "org_name",
-    "contract_method",
-    "estimated_price",
-    "open_date",
-    "close_date",
-    "bid_type",
-    "detail_url",
-)
+import os
 
 
-@contextmanager
-def connect(db_path: str | Path):
-    path = Path(db_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    try:
-        yield conn
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+def _is_postgres() -> bool:
+    url = os.environ.get("DATABASE_URL", "")
+    return url.startswith(("postgres://", "postgresql://"))
 
 
-def init_db(db_path: str | Path) -> None:
-    schema = SCHEMA_PATH.read_text(encoding="utf-8")
-    with connect(db_path) as conn:
-        conn.executescript(schema)
-    _migrate_stale_alio_urls(db_path)
-    _migrate_remove_kapt_rows(db_path)
-    _migrate_clear_prvt_google_urls(db_path)
+def _backend():
+    """매 호출마다 평가 — env 가 .env 로드 이후 세팅되는 경우 대응."""
+    if _is_postgres():
+        from db import _postgres as backend
+    else:
+        from db import _sqlite as backend
+    return backend
 
 
-def _migrate_clear_prvt_google_urls(db_path: str | Path) -> None:
-    """초기 누리장터 구현엔 detail_url 을 Google 검색 URL 로 저장했으나,
-    현재는 공고문 PDF 직접 다운로드 URL 을 사용함. 레거시 Google URL 은
-    NULL 로 비워 대시보드의 _fix_prvt_url() 재구성 로직이 동작하게 함.
-    """
-    with connect(db_path) as conn:
-        n = conn.execute(
-            "UPDATE bid_announcements SET detail_url = NULL "
-            "WHERE source LIKE 'prvt_api%' "
-            "AND detail_url LIKE '%google.com/search%'"
-        ).rowcount
-        if n:
-            logger.info("migrated: cleared %d legacy Google search URLs "
-                        "on prvt_api rows", n)
+# Public API — 두 백엔드 공통 시그니처를 그대로 노출
+def init_db(db_path):              return _backend().init_db(db_path)
+def upsert_bids(db_path, rows):    return _backend().upsert_bids(db_path, rows)
+def get_unnotified(db_path):       return _backend().get_unnotified(db_path)
+def mark_notified(db_path, ids):   return _backend().mark_notified(db_path, ids)
 
+def count_by_source(db_path, since_date=None):
+    return _backend().count_by_source(db_path, since_date=since_date)
 
-def _migrate_remove_kapt_rows(db_path: str | Path) -> None:
-    """K-apt 소스는 대시보드에서 완전히 제거됨 → 관련 레코드 삭제."""
-    with connect(db_path) as conn:
-        n = conn.execute("DELETE FROM bid_announcements "
-                         "WHERE source = 'kapt_api' OR bid_type = 'K-apt'").rowcount
-        if n:
-            logger.info("migrated: removed %d K-apt rows", n)
+def fetch_for_dashboard(db_path, **kwargs):
+    return _backend().fetch_for_dashboard(db_path, **kwargs)
 
-
-def _migrate_stale_alio_urls(db_path: str | Path) -> None:
-    """Older ALIO rows were stored with a detail_url of
-    ``.../occasional/bidView.do?seq=X`` which returns 404 → JS-redirects to
-    the ALIO homepage. Rewrite those to the current search-URL format so old
-    data still works after we push the fix.
-    """
-    import urllib.parse
-    with connect(db_path) as conn:
-        rows = conn.execute(
-            "SELECT id, title FROM bid_announcements "
-            "WHERE source = 'alio' AND detail_url LIKE '%bidView.do%'"
-        ).fetchall()
-        if not rows:
-            return
-        for r in rows:
-            keyword = (r["title"] or "")[:30]
-            new_url = (
-                "https://www.alio.go.kr/occasional/bidList.do?"
-                f"type=title&word={urllib.parse.quote(keyword)}"
-            )
-            conn.execute(
-                "UPDATE bid_announcements SET detail_url = ? WHERE id = ?",
-                (new_url, r["id"]),
-            )
-        logger.info("migrated %d stale ALIO detail_urls", len(rows))
-
-
-def upsert_bids(db_path: str | Path, rows: Iterable[dict]) -> tuple[int, int]:
-    """Upsert by (source, bid_no). Returns (inserted_or_updated, skipped)."""
-    rows = list(rows)
-    if not rows:
-        return 0, 0
-
-    placeholders = ", ".join(f":{c}" for c in COLUMNS)
-    update_cols = [c for c in COLUMNS if c not in ("source", "bid_no")]
-    update_clause = ", ".join(f"{c}=excluded.{c}" for c in update_cols)
-
-    sql = f"""
-    INSERT INTO bid_announcements ({", ".join(COLUMNS)})
-    VALUES ({placeholders})
-    ON CONFLICT(source, bid_no) DO UPDATE SET {update_clause}
-    """
-
-    processed = 0
-    skipped = 0
-    with connect(db_path) as conn:
-        for r in rows:
-            if not r.get("source") or not r.get("bid_no") or not r.get("title"):
-                skipped += 1
-                continue
-            payload = {c: r.get(c) for c in COLUMNS}
-            try:
-                conn.execute(sql, payload)
-                processed += 1
-            except sqlite3.Error:
-                logger.exception("upsert failed for bid_no=%s", r.get("bid_no"))
-                skipped += 1
-    logger.info("upsert_bids: processed=%d skipped=%d", processed, skipped)
-    return processed, skipped
-
-
-def get_unnotified(db_path: str | Path) -> list[dict]:
-    with connect(db_path) as conn:
-        cur = conn.execute(
-            "SELECT * FROM bid_announcements WHERE is_notified = 0 ORDER BY open_date DESC, id DESC"
-        )
-        return [dict(row) for row in cur.fetchall()]
-
-
-def mark_notified(db_path: str | Path, ids: Iterable[int]) -> int:
-    ids = list(ids)
-    if not ids:
-        return 0
-    placeholders = ",".join("?" for _ in ids)
-    with connect(db_path) as conn:
-        cur = conn.execute(
-            f"UPDATE bid_announcements SET is_notified = 1 WHERE id IN ({placeholders})",
-            ids,
-        )
-        return cur.rowcount
-
-
-def count_by_source(db_path: str | Path, since_date: str | None = None) -> dict[str, int]:
-    sql = "SELECT source, COUNT(*) AS n FROM bid_announcements"
-    params: tuple = ()
-    if since_date:
-        sql += " WHERE date(created_at) >= date(?)"
-        params = (since_date,)
-    sql += " GROUP BY source"
-    with connect(db_path) as conn:
-        cur = conn.execute(sql, params)
-        return {row["source"]: row["n"] for row in cur.fetchall()}
-
-
-def fetch_for_dashboard(
-    db_path: str | Path,
-    since_date: str | None = None,
-    bid_types: list[str] | None = None,
-    keyword: str | None = None,
-    org_name: str | None = None,
-    sources: list[str] | None = None,
-    limit: int = 1000,
-) -> list[dict]:
-    where = []
-    params: list = []
-    if since_date:
-        where.append("date(created_at) >= date(?)")
-        params.append(since_date)
-    if bid_types:
-        placeholders = ",".join("?" for _ in bid_types)
-        where.append(f"bid_type IN ({placeholders})")
-        params.extend(bid_types)
-    if keyword:
-        where.append("title LIKE ?")
-        params.append(f"%{keyword}%")
-    if org_name:
-        where.append("org_name LIKE ?")
-        params.append(f"%{org_name}%")
-    if sources:
-        placeholders = ",".join("?" for _ in sources)
-        where.append(f"source IN ({placeholders})")
-        params.extend(sources)
-    where_clause = f"WHERE {' AND '.join(where)}" if where else ""
-    sql = f"SELECT * FROM bid_announcements {where_clause} ORDER BY created_at DESC LIMIT ?"
-    params.append(limit)
-    with connect(db_path) as conn:
-        cur = conn.execute(sql, params)
-        return [dict(row) for row in cur.fetchall()]
-
-
-def daily_counts(db_path: str | Path, days: int = 30) -> list[dict]:
-    with connect(db_path) as conn:
-        cur = conn.execute(
-            """
-            SELECT date(created_at) AS d, COUNT(*) AS n
-            FROM bid_announcements
-            WHERE date(created_at) >= date('now', ?)
-            GROUP BY d ORDER BY d
-            """,
-            (f"-{days} days",),
-        )
-        return [dict(row) for row in cur.fetchall()]
+def daily_counts(db_path, days=30):
+    return _backend().daily_counts(db_path, days=days)

@@ -3,9 +3,10 @@ beautifulsoup4>=4.12
 lxml>=5.0
 pandas>=2.2
 apscheduler>=3.10
-streamlit>=1.32
+streamlit>=1.40            # st.segmented_control / st.container(horizontal=...)
 pyyaml>=6.0
 python-dotenv>=1.0
 truststore>=0.10
 openpyxl>=3.1
+psycopg2-binary>=2.9       # Supabase Postgres 어댑터 (DATABASE_URL 있을 때만 사용)
 pytest>=8.0
