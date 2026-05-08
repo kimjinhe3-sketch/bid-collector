@@ -18,7 +18,7 @@ load_dotenv(ROOT / ".env")
 
 from utils.logger import setup_logger, get_logger
 from utils.config_loader import load_config, cron_kwargs
-from collectors import g2b_api, alio_crawler, g2b_crawler, d2b_api, kwater_api, kepco_api, prvt_api
+from collectors import g2b_api, alio_crawler, g2b_crawler, d2b_api, kwater_api, kepco_api, prvt_api, lh_api
 from db import database
 from filters import keyword_filter
 from notifiers import email_notifier, slack_notifier
@@ -162,6 +162,24 @@ def run_collect(config: dict) -> int:
                 total_collected += len(rows)
             except Exception:
                 logger.exception("kepco_api collection crashed")
+
+    if sources.get("lh_api"):
+        lh_key = os.environ.get("LH_SERVICE_KEY")
+        if not lh_key:
+            logger.warning("LH_SERVICE_KEY missing — skipping lh_api "
+                           "(data.go.kr 15021183 자동승인 키 필요)")
+        else:
+            try:
+                rows = lh_api.collect(
+                    service_key=lh_key,
+                    page_size=page_size,
+                    sleep_seconds=sleep_seconds,
+                    lookback_days=lookback_days,
+                )
+                database.upsert_bids(db_path, rows)
+                total_collected += len(rows)
+            except Exception:
+                logger.exception("lh_api collection crashed")
 
     logger.info("collection complete: %d rows total", total_collected)
     return total_collected

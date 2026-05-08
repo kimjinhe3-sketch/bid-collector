@@ -1,0 +1,70 @@
+name: Daily Collect (18:00 KST)
+
+# 매일 09:00 UTC = 18:00 KST 자동 수집.
+# 수집 결과 (data/bids.sqlite) 를 main 에 commit/push 하면
+# Streamlit Cloud 가 자동 재배포 → 본 서버에 신선한 데이터 노출 + 휴면 자동 해제.
+#
+# Secrets 등록 필요 (GitHub repo Settings → Secrets and variables → Actions):
+#   - G2B_SERVICE_KEY  (필수: 나라장터·누리장터·D2B·K-water 공용)
+#   - LH_SERVICE_KEY   (필수: 한국토지주택공사, data.go.kr 15021183)
+#   - KEPCO_API_KEY    (선택: 한전 KEPCO, bigdata.kepco.co.kr 별도 발급)
+
+on:
+  schedule:
+    - cron: '0 9 * * *'   # 매일 09:00 UTC (= 18:00 Asia/Seoul)
+  workflow_dispatch: {}    # 수동 트리거 가능 (Actions 탭에서 'Run workflow')
+
+permissions:
+  contents: write          # data/bids.sqlite 커밋/푸시 용
+
+concurrency:
+  group: daily-collect
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'requirements.txt'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run collection
+        env:
+          G2B_SERVICE_KEY: ${{ secrets.G2B_SERVICE_KEY }}
+          LH_SERVICE_KEY: ${{ secrets.LH_SERVICE_KEY }}
+          KEPCO_API_KEY: ${{ secrets.KEPCO_API_KEY }}
+        run: python main.py --collect-only
+
+      - name: Commit & push DB if changed
+        run: |
+          git config user.name  "bid-collector-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add -f data/bids.sqlite
+          if git diff --staged --quiet; then
+            echo "No DB changes — skip commit."
+          else
+            git commit -m "[bot] daily collect $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            git push origin main
+          fi
+
+      - name: Warm both Streamlit apps
+        run: |
+          curl -fsSL --max-time 30 https://bidlivekorea.streamlit.app/      > /dev/null || true
+          curl -fsSL --max-time 30 https://bidlivekorea-test.streamlit.app/ > /dev/null || true
