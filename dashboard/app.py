@@ -887,8 +887,11 @@ def main() -> None:
             <h1 class="kt-hero-title">국내 입찰공고 현황</h1>
           </div>
           <div class="kt-hero-meta">
-            <div class="kt-hero-meta-label">LAST COLLECT</div>
-            <div class="kt-hero-meta-value">{last_update}</div>
+            <span class="kt-hero-meta-dot"></span>
+            <span class="kt-hero-meta-text">
+              <span class="kt-hero-meta-label">LAST COLLECT</span>
+              <span class="kt-hero-meta-value">{last_update}</span>
+            </span>
           </div>
         </div>
         """,
@@ -981,15 +984,24 @@ def main() -> None:
             return "오늘 신규 없음"
         return (f"오늘 <span class='kt-kpi-meta-strong'>+{today_n:,}</span>")
 
+    # KPI 4카드 — DESIGN_SYSTEM 1-4 시맨틱 매핑으로 각 카드 다른 accent
+    #   primary(KT RED) 오늘 수집 — brand statement
+    #   info(KT BLUE)   나라장터  — 정보·핵심 소스
+    #   success(KT TEAL)누리장터  — 완료/성공 톤
+    #   vip(KT PURPLE)  기타     — 강조 (LH·KEPCO 등 특수 카테고리)
     kpi_cards = "".join([
-        _kpi_card("오늘 수집",   total_today, f"DB 전체 <span class='kt-kpi-meta-strong'>{total_db:,}</span>건",
+        _kpi_card("오늘 수집",   total_today,
+                  f"DB 전체 <span class='kt-kpi-meta-strong'>{total_db:,}</span>건",
                   accent="primary"),
         _kpi_card("나라장터",    group_totals.get("나라장터", 0),
-                  _delta(group_counts.get("나라장터", 0))),
+                  _delta(group_counts.get("나라장터", 0)),
+                  accent="info"),
         _kpi_card("누리장터",    group_totals.get("누리장터", 0),
-                  _delta(group_counts.get("누리장터", 0))),
+                  _delta(group_counts.get("누리장터", 0)),
+                  accent="success"),
         _kpi_card("기타·LH·KEPCO", group_totals.get("기타", 0),
-                  _delta(group_counts.get("기타", 0))),
+                  _delta(group_counts.get("기타", 0)),
+                  accent="vip"),
     ])
     st.markdown(f'<div class="kt-kpi-grid">{kpi_cards}</div>',
                 unsafe_allow_html=True)
@@ -1170,20 +1182,22 @@ def main() -> None:
                   min_value=1, max_value=14, value=3,
                   key="f_dday_threshold_input",
                   help="설정한 일수 이내에 마감되는 공고만 알림 메일 대상")
-        st.caption("📧 메일링은 SMTP_USER / SMTP_PASS Secret + 아래 수신자 등록 필요. "
-                   "셋업 후 'D-n 알림 미리보기' 로 발송 대상 확인.")
+        st.caption("메일링은 SMTP_USER / SMTP_PASS Secret + 아래 수신자 등록 필요. "
+                   "셋업 후 [미리보기] 로 발송 대상 확인.")
 
         _btn_c1, _btn_c2 = st.columns(2)
         with _btn_c1:
-            if st.button("D-n 알림 미리보기", width="stretch",
-                         key="dn_notify_preview"):
+            if st.button("미리보기", width="stretch",
+                         key="dn_notify_preview",
+                         help="현재 D-n 임계 이내 공고만 추려 발송 대상 미리 확인"):
                 _dn_n = int(st.session_state.get("f_dday_threshold_input", 3))
                 count, msg = run_notify_action(config, db_path, dry_run=True,
                                                 dday_threshold=_dn_n)
                 st.success(msg) if count else st.info(msg)
         with _btn_c2:
-            if st.button("D-n 알림 발송", width="stretch", type="primary",
-                         key="dn_notify_send"):
+            if st.button("발송", width="stretch", type="primary",
+                         key="dn_notify_send",
+                         help="등록된 수신자에게 메일 즉시 발송"):
                 _dn_n = int(st.session_state.get("f_dday_threshold_input", 3))
                 count, msg = run_notify_action(config, db_path, dry_run=False,
                                                 dday_threshold=_dn_n)

@@ -198,13 +198,13 @@ p, .stMarkdown { color: var(--kt-graphite); font-size: var(--t-body); }
   position: relative;
 }
 .kt-hero::after {
-  /* KT RED accent bar — 마스트헤드 하단 액센트 (4px) */
+  /* KT RED accent — 절제된 2px / 40px brand mark */
   content: "";
   position: absolute;
   left: 0; bottom: -1px;
-  width: 56px; height: 3px;
+  width: 40px; height: 2px;
   background: var(--kt-red);
-  border-radius: 2px;
+  border-radius: 1px;
 }
 .kt-hero-eyebrow {
   font-size: var(--t-xxs);
@@ -226,20 +226,39 @@ p, .stMarkdown { color: var(--kt-graphite); font-size: var(--t-body); }
 .kt-hero-meta {
   text-align: right;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--kt-mist);
+  border-radius: var(--r-pill);
+  background: var(--kt-white);
 }
+.kt-hero-meta-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--kt-teal);          /* 성공·완료 = 시스템 alive 신호 */
+  box-shadow: 0 0 0 0 rgba(0, 190, 172, 0.45);
+  animation: ktPulse 2s cubic-bezier(0.66, 0, 0, 1) infinite;
+}
+@keyframes ktPulse {
+  to { box-shadow: 0 0 0 8px rgba(0, 190, 172, 0); }
+}
+.kt-hero-meta-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1; }
 .kt-hero-meta-label {
   font-size: var(--t-xxs);
   color: var(--kt-silver);
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  font-weight: 600;
+  font-weight: 700;
   margin-bottom: 2px;
 }
 .kt-hero-meta-value {
   font-family: "KT Flow", "Noto Sans KR", sans-serif;
-  font-weight: 600;
+  font-weight: 700;
   font-size: var(--t-sm);
-  color: var(--kt-graphite);
+  color: var(--kt-ink);
+  font-variant-numeric: tabular-nums;
 }
 @media (max-width: 640px) {
   .kt-hero { flex-direction: column; align-items: flex-start; gap: var(--s-2); padding: var(--s-4) 0 var(--s-3) 0; }
@@ -261,49 +280,62 @@ p, .stMarkdown { color: var(--kt-graphite); font-size: var(--t-body); }
 
 .kt-kpi-card {
   position: relative;
-  padding: var(--s-5) var(--s-5) var(--s-4) var(--s-5);
+  padding: var(--s-5) var(--s-5) var(--s-4) var(--s-6);   /* 좌측 padding 살짝 ↑ (accent bar 공간) */
   background: var(--kt-white);
   border: 1px solid var(--kt-mist);
   border-radius: var(--r-lg);
-  transition: all 0.18s ease;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.2s ease;
   overflow: hidden;
-  min-height: 108px;
+  min-height: 116px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  box-shadow: 0 1px 2px rgba(20, 20, 26, 0.04);
 }
 .kt-kpi-card:hover {
-  border-color: var(--kt-graphite);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(20, 20, 26, 0.08);
+  border-color: var(--kt-mist);
 }
 .kt-kpi-card::before {
-  /* 좌측 3px accent — 카드별 시맨틱 색 */
+  /* 좌측 3px accent — 카드별 시맨틱 색 (DESIGN_SYSTEM 1-4) */
   content: "";
   position: absolute;
   left: 0; top: 0; bottom: 0;
   width: 3px;
   background: var(--kt-mist);
+  transition: width 0.2s ease;
 }
+.kt-kpi-card:hover::before { width: 4px; }
+
 .kt-kpi-card.kt-accent-primary::before { background: var(--kt-red); }
 .kt-kpi-card.kt-accent-info::before    { background: var(--kt-blue); }
 .kt-kpi-card.kt-accent-success::before { background: var(--kt-teal); }
 .kt-kpi-card.kt-accent-vip::before     { background: var(--kt-purple); }
 
+/* Accent 색이 라벨에도 반영 — 카드 정체성 강화하되 큰 수치는 중립 유지 */
+.kt-kpi-card.kt-accent-primary .kt-kpi-label { color: var(--kt-red); }
+.kt-kpi-card.kt-accent-info .kt-kpi-label    { color: var(--kt-blue); }
+.kt-kpi-card.kt-accent-success .kt-kpi-label { color: var(--kt-teal); }
+.kt-kpi-card.kt-accent-vip .kt-kpi-label     { color: var(--kt-purple); }
+
 .kt-kpi-label {
   font-family: "KT Flow", "Noto Sans KR", sans-serif;
-  font-size: var(--t-xs);
-  font-weight: 600;
+  font-size: var(--t-xxs);
+  font-weight: 700;
   color: var(--kt-stone);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
 }
 .kt-kpi-value {
   font-family: "KT Flow", "Noto Sans KR", sans-serif;
   font-weight: 900;
-  font-size: 2.125rem;           /* 34px = display */
+  font-size: 2.25rem;            /* 36px display */
   color: var(--kt-ink);
-  line-height: 1.05;
-  letter-spacing: -0.025em;
+  line-height: 1.0;
+  letter-spacing: -0.03em;
   margin: var(--s-2) 0 var(--s-1) 0;
   font-variant-numeric: tabular-nums;
 }
@@ -318,26 +350,33 @@ p, .stMarkdown { color: var(--kt-graphite); font-size: var(--t-body); }
   color: var(--kt-silver);
   font-weight: 500;
 }
-.kt-kpi-meta-strong { color: var(--kt-graphite); font-weight: 600; }
+.kt-kpi-meta-strong { color: var(--kt-graphite); font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* ═══════════════════════════════════════════════════════════════
    4. Source pill toggle (세그먼트형)
-   .st-key-source_pills 컨테이너 안의 st.button 들을 pill 모양으로.
+   - active pill = KT BLACK fill (filter selection 의미, KT RED 와 충돌 방지)
+   - inactive pill = white outline + 회색 텍스트
+   - "전체/해제" 보조 액션은 우측에 작게 (.kt-action-spacer 가 가운데 공간 점유)
+
+   specificity: .st-key-source_pills.st-key-source_pills 처럼 클래스 두 번
+   반복하여 generic primary 룰을 확실히 override.
    ═══════════════════════════════════════════════════════════════ */
 .st-key-source_pills {
   display: flex !important;
   align-items: center !important;
   flex-wrap: wrap !important;
   gap: var(--s-2) !important;
-  margin: 0 0 var(--s-4) 0 !important;
+  margin: 0 0 var(--s-5) 0 !important;
   padding: 0 !important;
   background: transparent !important;
   border: none !important;
 }
 .st-key-source_pills [data-testid="stElementContainer"] { margin: 0 !important; padding: 0 !important; }
+.st-key-source_pills .stButton,
+.st-key-source_pills .stButton > button { width: auto !important; }
 .st-key-source_pills .stButton > button {
-  height: 36px !important;
-  min-height: 36px !important;
+  height: 38px !important;
+  min-height: 38px !important;
   padding: 0 var(--s-4) !important;
   border-radius: var(--r-pill) !important;
   font-family: "KT Flow", "Noto Sans KR", sans-serif !important;
@@ -345,34 +384,44 @@ p, .stMarkdown { color: var(--kt-graphite); font-size: var(--t-body); }
   font-weight: 600 !important;
   letter-spacing: -0.005em !important;
   transition: all 0.15s ease !important;
+  white-space: nowrap !important;
 }
 /* Inactive pill — 화이트 outline */
-.st-key-source_pills .stButton > button[kind="secondary"] {
+.st-key-source_pills.st-key-source_pills .stButton > button[kind="secondary"],
+.st-key-source_pills.st-key-source_pills .stButton > button[kind="secondary"] * {
   background: var(--kt-white) !important;
-  color: var(--kt-graphite) !important;
+  color: var(--kt-stone) !important;
+  -webkit-text-fill-color: var(--kt-stone) !important;
   border: 1px solid var(--kt-mist) !important;
 }
-.st-key-source_pills .stButton > button[kind="secondary"]:hover {
+.st-key-source_pills.st-key-source_pills .stButton > button[kind="secondary"]:hover,
+.st-key-source_pills.st-key-source_pills .stButton > button[kind="secondary"]:hover * {
   border-color: var(--kt-ink) !important;
   color: var(--kt-ink) !important;
+  -webkit-text-fill-color: var(--kt-ink) !important;
   background: var(--kt-fog) !important;
 }
-/* Active pill — KT BLACK fill */
-.st-key-source_pills .stButton > button[kind="primary"],
-.st-key-source_pills .stButton > button[kind="primary"] * {
+/* Active pill — KT BLACK fill (NOT KT RED — 필터 선택 의미 명확화) */
+.st-key-source_pills.st-key-source_pills .stButton > button[kind="primary"],
+.st-key-source_pills.st-key-source_pills .stButton > button[kind="primary"] * {
   background: var(--kt-ink) !important;
   color: var(--kt-white) !important;
   -webkit-text-fill-color: var(--kt-white) !important;
   border: 1px solid var(--kt-ink) !important;
+  box-shadow: 0 2px 8px rgba(20, 20, 26, 0.18) !important;
 }
-.st-key-source_pills .stButton > button[kind="primary"]:hover,
-.st-key-source_pills .stButton > button[kind="primary"]:hover * {
+.st-key-source_pills.st-key-source_pills .stButton > button[kind="primary"]:hover,
+.st-key-source_pills.st-key-source_pills .stButton > button[kind="primary"]:hover * {
   background: var(--kt-graphite) !important;
   border-color: var(--kt-graphite) !important;
 }
 
-/* "전체/해제" subtle 텍스트 버튼처럼 — kt-action-pill 마커 */
-.st-key-source_pills .kt-action-spacer { flex: 1 1 0 !important; }
+/* "전체/해제" subtle 텍스트 버튼 — kt-action-spacer 가 좌·우 분리 */
+.st-key-source_pills .kt-action-spacer {
+  flex: 1 1 0 !important;
+  height: 1px;
+}
+.st-key-source_pills .stMarkdown { flex: 1 1 0 !important; }
 
 /* ═══════════════════════════════════════════════════════════════
    5. Buttons — primary KT RED, secondary outline
@@ -434,41 +483,42 @@ p, .stMarkdown { color: var(--kt-graphite); font-size: var(--t-body); }
   box-shadow: 0 0 0 3px var(--kt-red-soft) !important;
   outline: none !important;
 }
-/* Multiselect 선택 태그 — pill */
+/* Multiselect 선택 태그 — KT BLUE (DESIGN_SYSTEM 1-4: 정보·링크·필터) */
 .stMultiSelect [data-baseweb="tag"], [data-baseweb="tag"] {
-  background-color: var(--kt-red-soft) !important;
-  color: var(--kt-red) !important;
-  border: 1px solid #FFC9CC !important;
+  background-color: rgba(0, 165, 255, 0.10) !important;
+  color: var(--kt-blue) !important;
+  border: 1px solid rgba(0, 165, 255, 0.28) !important;
   border-radius: var(--r-pill) !important;
   font-family: "Noto Sans KR", sans-serif !important;
   font-weight: 500 !important;
 }
 .stMultiSelect [data-baseweb="tag"] span, [data-baseweb="tag"] span {
-  color: var(--kt-red) !important;
-  -webkit-text-fill-color: var(--kt-red) !important;
+  color: var(--kt-blue) !important;
+  -webkit-text-fill-color: var(--kt-blue) !important;
 }
 .stMultiSelect [data-baseweb="tag"] svg, [data-baseweb="tag"] svg {
-  fill: var(--kt-red) !important; color: var(--kt-red) !important;
+  fill: var(--kt-blue) !important; color: var(--kt-blue) !important;
 }
 .stSlider [role="slider"] {
   background: var(--kt-red) !important;
   border-color: var(--kt-red) !important;
 }
 
-/* kw-chip (필터 미리보기 칩) */
+/* kw-chip include — KT BLUE (필터 매핑) */
 .kw-chip {
   display: inline-block;
   padding: 3px 10px;
   margin: 3px 4px 3px 0;
-  background: var(--kt-red-soft);
-  color: var(--kt-red);
-  border: 1px solid #FFC9CC;
+  background: rgba(0, 165, 255, 0.10);
+  color: var(--kt-blue);
+  border: 1px solid rgba(0, 165, 255, 0.28);
   border-radius: var(--r-pill);
   font-family: "Noto Sans KR", sans-serif;
   font-size: var(--t-xs);
   font-weight: 500;
   line-height: 1.5;
 }
+/* kw-chip exclude — 비활성·구분 (kt-light-gray 톤) */
 .kw-chip.ex {
   background: var(--kt-fog);
   color: var(--kt-graphite);
@@ -562,17 +612,17 @@ p, .stMarkdown { color: var(--kt-graphite); font-size: var(--t-body); }
   border-color: var(--kt-red-hover) !important;
 }
 
-/* 사이드바 multiselect 선택 태그 — 어두운 배경 위 가독성 위해 KT RED 채움 */
+/* 사이드바 multiselect 선택 태그 — KT BLUE (어두운 배경 위 brighter 톤) */
 [data-testid="stSidebar"] [data-baseweb="tag"] {
-  background-color: rgba(254, 46, 54, 0.18) !important;
-  color: #FF8A8E !important;
-  border: 1px solid rgba(254, 46, 54, 0.35) !important;
+  background-color: rgba(0, 165, 255, 0.16) !important;
+  color: #5FCBFF !important;
+  border: 1px solid rgba(0, 165, 255, 0.36) !important;
 }
 [data-testid="stSidebar"] [data-baseweb="tag"] span {
-  color: #FF8A8E !important; -webkit-text-fill-color: #FF8A8E !important;
+  color: #5FCBFF !important; -webkit-text-fill-color: #5FCBFF !important;
 }
 [data-testid="stSidebar"] [data-baseweb="tag"] svg {
-  fill: #FF8A8E !important; color: #FF8A8E !important;
+  fill: #5FCBFF !important; color: #5FCBFF !important;
 }
 
 /* 사이드바 슬라이더 */
@@ -607,11 +657,11 @@ p, .stMarkdown { color: var(--kt-graphite); font-size: var(--t-body); }
 }
 @media (max-width: 640px) { .kt-sidebar-brand img { height: 20px; } }
 
-/* 사이드바 kw-chip (필터 미리보기) — 어두운 배경 위 톤 조정 */
+/* 사이드바 kw-chip (필터 미리보기) — include=KT BLUE / exclude=neutral */
 [data-testid="stSidebar"] .kw-chip {
-  background: rgba(254, 46, 54, 0.16);
-  color: #FF8A8E;
-  border-color: rgba(254, 46, 54, 0.32);
+  background: rgba(0, 165, 255, 0.16);
+  color: #5FCBFF;
+  border-color: rgba(0, 165, 255, 0.36);
 }
 [data-testid="stSidebar"] .kw-chip.ex {
   background: rgba(255, 255, 255, 0.08);
