@@ -88,743 +88,7 @@ SOURCE_LABELS = {
 # Styling — custom CSS incl. mobile media queries
 # ────────────────────────────────────────────────────────────────
 
-CUSTOM_CSS = """
-<style>
-/* @import 는 반드시 다른 CSS rule 보다 앞에 — Noto Sans KR (한글 fallback) */
-@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap");
-
-/* ═════════════════════════════════════════════════════════════════
-   KT Engineering Design System (design/DESIGN_SYSTEM.md 준수)
-   - Primary: kt-red #FE2E36
-   - Mono: kt-black / kt-dark-gray / kt-light-gray / kt-white
-   - 보조: kt-purple #AA50FF · kt-blue #00A5FF · kt-teal #00BEAC
-   - 폰트: KT Flow (Black/Bold/Medium/Thin) + Noto Sans KR (한글 fallback)
-   - 반경: 기본 8px / 카드 12px / 칩 round-full
-   ═════════════════════════════════════════════════════════════════ */
-
-/* ─── KT Flow 4종 self-host (static/fonts via enableStaticServing) ─── */
-@font-face {
-  font-family: "KT Flow";
-  src: url("/app/static/fonts/KTFlow-Thin.ttf") format("truetype");
-  font-weight: 100 300;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "KT Flow";
-  src: url("/app/static/fonts/KTFlow-Medium.ttf") format("truetype");
-  font-weight: 400 500;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "KT Flow";
-  src: url("/app/static/fonts/KTFlow-Bold.ttf") format("truetype");
-  font-weight: 600 700;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "KT Flow";
-  src: url("/app/static/fonts/KTFlow-Black.ttf") format("truetype");
-  font-weight: 800 900;
-  font-style: normal;
-  font-display: swap;
-}
-
-:root {
-  /* ── Primary (kt-red — 디지털 표준) ── */
-  --kt-red: #FE2E36;
-  --kt-red-hover: #E62831;       /* 90% 강도 */
-  --kt-red-soft: #FFE5E6;        /* 배경/배지용 옅은 톤 */
-  --kt-red-bi: #ED2024;          /* BI 인쇄용 (PDF 출력 시에만) */
-
-  /* ── Matching (보조 의미 매핑) ── */
-  --kt-purple: #AA50FF;          /* 강조·VIP·승인 */
-  --kt-blue:   #00A5FF;          /* 정보·링크·필터 */
-  --kt-teal:   #00BEAC;          /* 성공·수주·완료 */
-  --kt-amber:  #F59E0B;          /* 결정 임박 (pipeline 가이드) */
-
-  /* ── Mono ── */
-  --kt-black:      #000000;
-  --kt-dark-gray:  #4C4C4E;
-  --kt-light-gray: #A2A4A3;
-  --kt-white:      #FFFFFF;
-
-  /* ── Surfaces ── */
-  --bg-page:    #FFFFFF;
-  --bg-surface: #FFFFFF;
-  --bg-soft:    #F8F8F8;         /* 카드 배경 보조 */
-  --bg-sidebar: #000000;         /* DESIGN_SYSTEM 5-1: KT BLACK */
-
-  /* ── Borders ── */
-  --border-line:   #E5E5E5;
-  --border-strong: #A2A4A3;
-
-  /* ── Typography (semantic) ── */
-  --text-primary: #000000;       /* H1/H2 */
-  --text-heading: #4C4C4E;       /* H3 */
-  --text-body:    #4C4C4E;       /* 본문 */
-  --text-muted:   #A2A4A3;       /* 보조 */
-  --link:         #00A5FF;       /* kt-blue */
-
-  /* ── Semantic (CRM 도메인 매핑, DESIGN_SYSTEM 1-4) ── */
-  --success: #00BEAC;            /* kt-teal — 수주·완료 */
-  --info:    #00A5FF;            /* kt-blue */
-  --warning: #F59E0B;            /* amber */
-  --danger:  #FE2E36;            /* kt-red — 위험·실주·삭제 */
-  --vip:     #AA50FF;            /* kt-purple */
-
-  /* ── 강조 (수치) ── */
-  --accent-number: #FE2E36;
-  --accent-soft:   #FFE5E6;
-
-  /* ── Legacy aliases (기존 코드 호환) ── */
-  --accent:        #FE2E36;
-  --accent-hover:  #E62831;
-  --bg:            #FFFFFF;
-  --card:          #FFFFFF;
-  --fg:            #000000;
-  --fg-muted:      #A2A4A3;
-  --border:        #E5E5E5;
-
-  /* ── Radius (DESIGN_SYSTEM 4) ── */
-  --radius-sm: 8px;              /* 기본 */
-  --radius:    8px;
-  --radius-lg: 12px;             /* 카드 */
-  --radius-pill: 999px;          /* 칩/배지 */
-
-  /* ── Tags (kw-chip) — KT include/exclude 매핑 ── */
-  --tag-include-bg:     #FFE5E6; /* kt-red soft */
-  --tag-include-text:   #FE2E36;
-  --tag-include-border: #FFB8BB;
-  --tag-exclude-bg:     #F8F8F8;
-  --tag-exclude-text:   #4C4C4E;
-  --tag-exclude-border: #E5E5E5;
-}
-
-html, body, .stApp { background: var(--bg) !important; }
-
-/* ─── 글로벌 폰트 스택 (DESIGN_SYSTEM 2-2/2-3) ───
-   KT Flow 우선 → 한글은 자동으로 Noto Sans KR fallback.
-   한글 본문 (text-sm 이하) 은 가독성 위해 Noto Sans KR. */
-body, .stApp {
-  font-family: "KT Flow", "Noto Sans KR", "Apple SD Gothic Neo",
-               -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: var(--fg);
-  letter-spacing: -0.003em;
-  -webkit-font-smoothing: antialiased;
-}
-
-/* 명시적 요소들만 !important — 아이콘 span 은 제외 */
-.stMarkdown, .stMarkdown p, .stMarkdown li, .stMarkdown span,
-.stTextInput input, .stTextArea textarea,
-.stDateInput input, .stNumberInput input,
-.stButton > button, .stDownloadButton > button,
-[data-testid="stCheckbox"] label, label, p {
-  font-family: "KT Flow", "Noto Sans KR", "Apple SD Gothic Neo",
-               -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
-  color: var(--fg);
-}
-
-
-/* Material Icons / Symbols — Streamlit Cloud 모바일에서 자체 폰트가
-   안 들어오는 경우 Google Fonts CDN 폴백 (위에서 link 로 preload).
-   ligature 가 raw 텍스트로 보이는 것 방지. */
-.material-icons, .material-symbols-outlined, .material-symbols-rounded,
-span[class*="material-icons"], span[class*="material-symbols"],
-[data-testid="stIconMaterial"], [data-testid*="Icon"] > span {
-  font-family: "Material Symbols Outlined", "Material Symbols Rounded",
-               "Material Icons" !important;
-  font-feature-settings: "liga" !important;
-  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24 !important;
-  font-weight: normal !important;
-  font-style: normal !important;
-  line-height: 1 !important;
-  letter-spacing: normal !important;
-  text-transform: none !important;
-  display: inline-block !important;
-  white-space: nowrap !important;
-  word-wrap: normal !important;
-  direction: ltr !important;
-  -webkit-font-smoothing: antialiased !important;
-}
-
-/* ─── Typography hierarchy (DESIGN_SYSTEM 2-3) ───
-   text-2xl font-bold → 페이지 타이틀 (24/700, KT Flow Bold)
-   text-lg  font-bold → 섹션 타이틀 (18/700)
-   text-base font-medium → 본문 강조 (16/500)
-   text-sm  → 본문 (14/400 Noto Sans KR)
-   text-xs  → 메타 (12/400) */
-h1, .brand-title {
-  color: var(--text-primary) !important;
-  font-family: "KT Flow", "Noto Sans KR", sans-serif !important;
-  font-weight: 700 !important;
-  font-size: 1.5rem !important;     /* 24px = text-2xl */
-  letter-spacing: -0.015em !important;
-}
-h2 {
-  color: var(--text-primary) !important;
-  font-family: "KT Flow", "Noto Sans KR", sans-serif !important;
-  font-weight: 700 !important;
-  font-size: 1.25rem !important;
-  letter-spacing: -0.01em !important;
-}
-h3 {
-  color: var(--text-heading) !important;
-  font-family: "KT Flow", "Noto Sans KR", sans-serif !important;
-  font-size: 1.125rem !important;   /* 18px = text-lg */
-  font-weight: 700 !important;
-  margin: 1.2rem 0 0.5rem 0 !important;
-  letter-spacing: -0.01em !important;
-}
-p, .stMarkdown, body { color: var(--text-body); }
-.section-hint, [data-testid="stCaptionContainer"] { color: var(--text-muted) !important; }
-
-/* 대시보드 핵심 수치 — text-3xl font-black KT Flow Black */
-[data-testid="stMetricValue"] {
-  font-family: "KT Flow", "Noto Sans KR", sans-serif !important;
-  font-weight: 900 !important;
-  font-size: 1.875rem !important;   /* 30px */
-  color: var(--text-primary) !important;
-  letter-spacing: -0.02em !important;
-}
-[data-testid="stMetricLabel"] {
-  font-family: "Noto Sans KR", sans-serif !important;
-  font-weight: 500 !important;
-  font-size: 0.8125rem !important;
-  color: var(--text-muted) !important;
-}
-
-/* ─── Brand bar (헤더 카드 — DESIGN_SYSTEM 5-2) ─── */
-.brand-bar {
-  background: var(--card);
-  border: 1px solid var(--border-line);
-  border-radius: var(--radius-lg);
-  padding: 18px 22px;
-  margin-bottom: 24px;               /* DESIGN_SYSTEM 5-4: 섹션 24px */
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-}
-.brand-title {
-  font-size: 1.4rem; margin: 0;
-  font-family: "KT Flow", "Noto Sans KR", sans-serif !important;
-  font-weight: 700 !important;
-}
-.brand-sub {
-  font-size: 0.82rem;
-  color: var(--text-muted);
-  margin-top: 4px;
-  font-family: "Noto Sans KR", sans-serif;
-}
-
-/* ─── Section hints ─── */
-.section-hint {
-  color: var(--fg-muted); font-size: 0.82rem;
-  margin: -0.3rem 0 0.75rem 0;
-}
-
-/* ─── Tag chips (DESIGN_SYSTEM 4 — Chip / round-full) ─── */
-.kw-chip {
-  display: inline-block; padding: 3px 10px; margin: 3px 4px 3px 0;
-  background: var(--tag-include-bg);
-  color: var(--tag-include-text);
-  border: 1px solid var(--tag-include-border);
-  border-radius: var(--radius-pill);
-  font-family: "Noto Sans KR", sans-serif;
-  font-size: 0.78rem; font-weight: 500;
-  line-height: 1.5;
-}
-.kw-chip.ex {
-  background: var(--tag-exclude-bg);
-  color: var(--tag-exclude-text);
-  border: 1px solid var(--tag-exclude-border);
-}
-
-/* ─── Empty state ─── */
-.empty-state {
-  text-align: center; padding: 44px 20px;
-  background: var(--card); border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-lg); color: var(--text-muted);
-}
-
-/* ─── Buttons (DESIGN_SYSTEM 6 — KT RED primary, hover 90% 강도) ─── */
-.stButton > button {
-  border-radius: var(--radius-sm) !important;     /* 8px */
-  border: 1px solid var(--border-line) !important;
-  background: var(--bg-surface) !important;
-  color: var(--kt-black) !important;
-  font-family: "KT Flow", "Noto Sans KR", sans-serif !important;
-  font-weight: 500 !important;
-  font-size: 0.88rem !important;
-  padding: 0.45rem 1rem !important;
-  transition: all 0.15s ease !important;            /* DESIGN_SYSTEM 6 */
-  box-shadow: none !important;
-}
-.stButton > button:hover {
-  border-color: var(--kt-black) !important;
-  background: #FAFAFA !important;
-}
-.stButton > button:focus-visible {
-  outline: 2px solid var(--kt-red) !important;
-  outline-offset: 2px !important;
-}
-/* Primary 버튼 — KT RED */
-.stButton > button[kind="primary"],
-.stButton > button[kind="primary"] *,
-.stButton > button[kind="primary"] p,
-.stButton > button[kind="primary"] span,
-.stButton > button[kind="primary"] div {
-  background: var(--kt-red) !important;
-  color: #FFFFFF !important;
-  border: 1px solid var(--kt-red) !important;
-  -webkit-text-fill-color: #FFFFFF !important;
-  font-weight: 600 !important;
-}
-.stButton > button[kind="primary"] svg { fill: #FFFFFF !important; }
-.stButton > button[kind="primary"]:hover,
-.stButton > button[kind="primary"]:hover * {
-  background: var(--kt-red-hover) !important;
-  border-color: var(--kt-red-hover) !important;
-  color: #FFFFFF !important;
-  -webkit-text-fill-color: #FFFFFF !important;
-}
-
-/* ─── Inputs (DESIGN_SYSTEM 6 — focus 2px outline + 2px offset) ─── */
-.stTextInput input, .stTextArea textarea,
-.stDateInput input, .stNumberInput input,
-.stSelectbox > div > div, .stMultiSelect > div > div {
-  border-radius: var(--radius-sm) !important;
-  border: 1px solid var(--border-line) !important;
-  background: var(--bg-surface) !important;
-  font-family: "Noto Sans KR", sans-serif !important;
-  font-size: 0.88rem !important;
-  color: var(--kt-black) !important;
-}
-.stTextInput input:focus, .stTextArea textarea:focus,
-.stDateInput input:focus, .stNumberInput input:focus {
-  border-color: var(--kt-red) !important;
-  box-shadow: 0 0 0 3px var(--kt-red-soft) !important;
-  outline: none !important;
-}
-
-/* ─── Multiselect 선택 태그 (업종) — KT RED soft 칩 ─── */
-.stMultiSelect [data-baseweb="tag"],
-[data-baseweb="tag"] {
-  background-color: var(--tag-include-bg) !important;
-  color: var(--tag-include-text) !important;
-  border: 1px solid var(--tag-include-border) !important;
-  border-radius: var(--radius-pill) !important;
-  font-family: "Noto Sans KR", sans-serif !important;
-  font-weight: 500 !important;
-}
-.stMultiSelect [data-baseweb="tag"] span,
-[data-baseweb="tag"] span {
-  color: var(--tag-include-text) !important;
-  -webkit-text-fill-color: var(--tag-include-text) !important;
-}
-.stMultiSelect [data-baseweb="tag"] svg,
-[data-baseweb="tag"] svg {
-  fill: var(--tag-include-text) !important;
-  color: var(--tag-include-text) !important;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   Sidebar (DESIGN_SYSTEM 5-1)
-   - 너비: 240px (w-60)
-   - 배경: KT BLACK #000000
-   - 텍스트: KT WHITE / hover 시 white/10 overlay
-   - active: 좌측 4px KT RED 인디케이터
-   ═══════════════════════════════════════════════════════════════ */
-[data-testid="stSidebar"] {
-  background: var(--bg-sidebar) !important;       /* KT BLACK */
-  border-right: none !important;
-  width: 15rem !important;                          /* 240px */
-  min-width: 15rem !important;
-}
-/* 사이드바 모든 텍스트 — 흰색, KT Flow */
-[data-testid="stSidebar"] *,
-[data-testid="stSidebar"] p,
-[data-testid="stSidebar"] span,
-[data-testid="stSidebar"] label,
-[data-testid="stSidebar"] div,
-[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {
-  color: var(--kt-white) !important;
-  -webkit-text-fill-color: var(--kt-white) !important;
-}
-[data-testid="stSidebar"] h1,
-[data-testid="stSidebar"] h2,
-[data-testid="stSidebar"] h3,
-[data-testid="stSidebar"] h4 {
-  color: var(--kt-white) !important;
-  font-family: "KT Flow", "Noto Sans KR", sans-serif !important;
-}
-/* 사이드바 input — 어두운 배경 위 구분 잘 되게 */
-[data-testid="stSidebar"] input,
-[data-testid="stSidebar"] textarea,
-[data-testid="stSidebar"] [data-baseweb="input"] > div,
-[data-testid="stSidebar"] [data-baseweb="select"] > div {
-  background: rgba(255, 255, 255, 0.08) !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
-  color: var(--kt-white) !important;
-}
-[data-testid="stSidebar"] input:focus,
-[data-testid="stSidebar"] textarea:focus {
-  border-color: var(--kt-red) !important;
-  box-shadow: 0 0 0 2px rgba(254, 46, 54, 0.35) !important;
-}
-/* 사이드바 button — secondary 는 dark glass, primary 는 KT RED */
-[data-testid="stSidebar"] .stButton > button {
-  background: rgba(255, 255, 255, 0.08) !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
-  color: var(--kt-white) !important;
-}
-[data-testid="stSidebar"] .stButton > button:hover {
-  background: rgba(255, 255, 255, 0.14) !important;
-  border-color: rgba(255, 255, 255, 0.30) !important;
-}
-[data-testid="stSidebar"] .stButton > button[kind="primary"] {
-  background: var(--kt-red) !important;
-  border-color: var(--kt-red) !important;
-  color: #FFFFFF !important;
-}
-[data-testid="stSidebar"] .stButton > button[kind="primary"]:hover {
-  background: var(--kt-red-hover) !important;
-  border-color: var(--kt-red-hover) !important;
-}
-/* 사이드바 슬라이더 — KT RED 트랙 */
-[data-testid="stSidebar"] .stSlider [role="slider"] {
-  background: var(--kt-red) !important;
-  border-color: var(--kt-red) !important;
-}
-[data-testid="stSidebar"] .stSlider [data-baseweb="slider"] > div > div {
-  background: var(--kt-red) !important;
-}
-/* 사이드바 체크박스 — 흰 외곽, KT RED 채움 */
-[data-testid="stSidebar"] [data-testid="stCheckbox"] [data-baseweb="checkbox"] [aria-checked="true"] > div {
-  background: var(--kt-red) !important;
-  border-color: var(--kt-red) !important;
-}
-/* active 인디케이터 — 좌측 4px KT RED bar 시뮬레이션 (.kt-active 클래스 부여 시) */
-[data-testid="stSidebar"] .kt-nav-item {
-  position: relative;
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
-}
-[data-testid="stSidebar"] .kt-nav-item:hover {
-  background: rgba(255, 255, 255, 0.10);
-}
-[data-testid="stSidebar"] .kt-nav-item.active {
-  background: rgba(255, 255, 255, 0.15);
-}
-[data-testid="stSidebar"] .kt-nav-item.active::before {
-  content: "";
-  position: absolute;
-  left: 0; top: 6px; bottom: 6px;
-  width: 4px;
-  background: var(--kt-red);
-  border-radius: 2px;
-}
-/* 접기/펼치기 버튼 항상 보이게 (버전별 test-id 모두 커버) */
-[data-testid="collapsedControl"],
-[data-testid="stSidebarCollapsedControl"],
-[data-testid="stSidebarCollapseButton"],
-[data-testid="stExpandSidebarButton"],
-[data-testid="baseButton-headerNoPadding"],
-[data-testid="stBaseButton-headerNoPadding"] {
-  visibility: visible !important;
-  display: inline-flex !important;
-  opacity: 1 !important;
-  pointer-events: auto !important;
-  /* 아이콘 폰트가 늦게 로드되어도 button 이 collapse 되지 않도록 최소 크기 보장 */
-  min-width: 32px !important;
-  min-height: 32px !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-/* 햄버거 button 안 SVG/icon span 도 최소 크기 보장 */
-[data-testid="stExpandSidebarButton"] > *,
-[data-testid="stSidebarCollapseButton"] > *,
-[data-testid="stSidebarCollapsedControl"] > *,
-[data-testid="collapsedControl"] > * {
-  min-width: 18px;
-  min-height: 18px;
-}
-/* 태블릿 (≤ 900px): 사이드바 살짝 좁게 */
-@media (max-width: 900px) {
-  [data-testid="stSidebar"] {
-    width: 14rem !important;
-    min-width: 14rem !important;
-  }
-}
-/* 모바일 (≤ 640px): 사이드바 폭 + 햄버거 버튼 KT RED 강조 */
-@media (max-width: 640px) {
-  [data-testid="stSidebar"][aria-expanded="true"] {
-    width: 85vw !important;
-    min-width: 0 !important;
-    max-width: 85vw !important;
-  }
-  /* 햄버거 버튼 — KT RED 강조 (DESIGN_SYSTEM 5-3 모바일 인디케이터 톤) */
-  [data-testid="collapsedControl"],
-  [data-testid="stSidebarCollapsedControl"],
-  [data-testid="stExpandSidebarButton"] {
-    background: var(--bg-surface) !important;
-    border: 1px solid var(--kt-red) !important;
-    border-radius: var(--radius-sm) !important;
-    box-shadow: 0 2px 6px rgba(254, 46, 54, 0.20) !important;
-  }
-  [data-testid="stExpandSidebarButton"] svg,
-  [data-testid="stExpandSidebarButton"] [data-testid="stIconMaterial"] {
-    color: var(--kt-red) !important;
-  }
-  [data-testid="stHeader"] { z-index: 999 !important; }
-  /* 사이드바 내부 폰트·여백 축소 */
-  [data-testid="stSidebar"] .block-container {
-    padding: 0.6rem 0.6rem !important;
-  }
-  [data-testid="stSidebar"] h3 {
-    font-size: 0.7rem !important;
-    margin: 0.8rem 0 0.3rem 0 !important;
-  }
-  [data-testid="stSidebar"] label,
-  [data-testid="stSidebar"] .stCheckbox label,
-  [data-testid="stSidebar"] input,
-  [data-testid="stSidebar"] textarea,
-  [data-testid="stSidebar"] button {
-    font-size: 0.8rem !important;
-  }
-  [data-testid="stSidebar"] .stSlider { font-size: 0.75rem; }
-}
-/* 사이드바 섹션 헤딩 — 톤다운된 light gray (KT BLACK 배경 위 구분 라벨) */
-[data-testid="stSidebar"] h3 {
-  font-family: "KT Flow", "Noto Sans KR", sans-serif !important;
-  font-size: 0.78rem !important;
-  color: var(--kt-light-gray) !important;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 600 !important;
-  margin: 1.2rem 0 0.4rem 0 !important;
-}
-
-/* ─── 사이드바 KT engineering 로고 (DESIGN_SYSTEM 3-2) ───
-   여백: 데스크톱 16px, 모바일 12px. 최소 높이: 데스크톱 28px, 모바일 24px. */
-.kt-sidebar-brand {
-  padding: 16px;
-  margin: -1rem -1rem 12px -1rem;   /* 사이드바 block-container 안쪽 negative margin 으로 폭 채움 */
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-}
-.kt-sidebar-brand img {
-  height: 28px;
-  width: auto;
-  display: block;
-}
-@media (max-width: 640px) {
-  .kt-sidebar-brand { padding: 12px; }
-  .kt-sidebar-brand img { height: 24px; }
-}
-
-/* ─── Checkboxes ─── */
-[data-testid="stCheckbox"] label { font-size: 0.9rem; font-weight: 500; }
-
-/* ─── 소스 필터 섹션 헤딩 ─── */
-.src-section-title {
-  font-family: "KT Flow", "Noto Sans KR", sans-serif;
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--kt-white);
-  margin: 0 0 0.4rem 0;
-  padding: 0;
-}
-
-/* ─── 모바일: 소스 필터 섹션 컴팩트화 ─── */
-@media (max-width: 768px) {
-  /* 섹션 헤딩 숨김 — 카운트 캡션이 충분히 정보 전달 */
-  .st-key-src_filter_section .src-section-title {
-    display: none !important;
-  }
-  /* 컬럼 row 의 모든 child container margin 0, gap 축소 */
-  .st-key-src_filter_section [data-testid="stHorizontalBlock"] {
-    gap: 0.3rem !important;
-    flex-wrap: nowrap !important;
-  }
-  .st-key-src_filter_section [data-testid="stColumn"] {
-    min-width: 0 !important;
-    padding: 0 !important;
-  }
-  .st-key-src_filter_section [data-testid="stElementContainer"] {
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-  /* 체크박스 — 라벨 작게, padding 축소, 한 줄에 3개 */
-  .st-key-src_filter_section [data-testid="stCheckbox"] {
-    padding: 2px 0 !important;
-  }
-  .st-key-src_filter_section [data-testid="stCheckbox"] label {
-    font-size: 0.72rem !important;
-    line-height: 1.2 !important;
-  }
-  .st-key-src_filter_section [data-testid="stCheckbox"] label > div {
-    gap: 4px !important;
-  }
-  /* 버튼 (전체/해제) — 작고 짧게 */
-  .st-key-src_filter_section [data-testid="stButton"] button {
-    padding: 4px 6px !important;
-    font-size: 0.72rem !important;
-    min-height: 30px !important;
-    height: 30px !important;
-    line-height: 1 !important;
-  }
-}
-
-/* ─── 표 타이틀바 (윈도우 창 스타일 · 표에 일체화) ─── */
-.st-key-bidtable_titlebar {
-  background: transparent !important;
-  border: none !important;
-  border-radius: 0 !important;
-  padding: 6px 2px !important;
-  margin-bottom: 0 !important;
-  min-height: 42px;
-}
-.st-key-bidtable_titlebar .tbl-title {
-  font-size: 0.92rem;
-  color: var(--fg);
-  line-height: 1.3;
-}
-/* 타이틀바 내부 모든 stElementContainer 의 여백 제거 */
-.st-key-bidtable_titlebar [data-testid="stElementContainer"] {
-  margin: 0 !important;
-  padding: 0 !important;
-}
-/* 타이틀바 바로 뒤에 오는 dataframe 을 시각적으로 '연결' */
-.st-key-bidtable_titlebar + [data-testid="stElementContainer"] {
-  margin-top: 0 !important;
-}
-.st-key-bidtable_titlebar + [data-testid="stElementContainer"] [data-testid="stDataFrame"] {
-  border-radius: 0 !important;   /* 표 전체 직사각형 */
-  margin-top: 0 !important;
-}
-
-/* ─── 엑셀 다운로드 버튼 (작고 KT RED 톤다운) ─── */
-[data-testid="stDownloadButton"] button {
-  background: transparent !important;
-  color: var(--kt-light-gray) !important;
-  border: 1px solid rgba(254, 46, 54, 0.25) !important;
-  padding: 2px 10px !important;
-  font-family: "KT Flow", "Noto Sans KR", sans-serif !important;
-  font-size: 0.72rem !important;
-  font-weight: 500 !important;
-  min-height: 28px !important;
-  height: 28px !important;
-  border-radius: var(--radius-sm) !important;
-  box-shadow: none !important;
-  transition: all 0.15s ease;
-}
-[data-testid="stDownloadButton"] button:hover {
-  background: var(--kt-red-soft) !important;
-  color: var(--kt-red) !important;
-  border-color: var(--kt-red) !important;
-}
-
-/* ─── Dataframe (DESIGN_SYSTEM 4 — Data Table) ─── */
-[data-testid="stDataFrame"] {
-  border-radius: var(--radius-lg) !important;       /* 12px (카드) */
-  overflow: hidden;
-  border: 1px solid var(--border-line);
-  background: var(--bg-surface);
-}
-/* dataframe 의 touch-action 은 강제하지 않음 (Streamlit 기본값 사용).
-   - 가로 컬럼 스크롤: glide-data-grid 자체 핸들러가 처리 (CSS 로 막으면 안 됨)
-   - 세로 페이지 스크롤: main() 의 JS 핸들러가 sticky direction 으로
-     window capture 단계에서 grid 핸들러를 stopImmediatePropagation. */
-
-/* 모바일 viewport 채우기 — 표 아래 빈 공간 제거.
-   calc(100vh - 280px) 의 280px = stHeader(60) + 로고카드(80) + 필터row(40)
-   + 캡션(20) + 타이틀바(40) + 마진들 (~40). 화면 회전·기기별 차이는
-   min/max-height 로 가드. */
-@media (max-width: 768px) {
-  [data-testid="stDataFrame"] {
-    height: calc(100vh - 280px) !important;
-    min-height: 420px !important;
-    max-height: calc(100vh - 200px) !important;
-  }
-  [data-testid="stDataFrame"] > div,
-  [data-testid="stDataFrame"] > div > div {
-    height: 100% !important;
-  }
-}
-/* "열기" 링크 — 파랑 유지로 클릭 가능 신호 */
-[data-testid="stDataFrame"] a {
-  text-decoration: none;
-  color: var(--link) !important;
-  font-weight: 500;
-}
-/* 금액(숫자) 강조 — 정수 컬럼 오른쪽 정렬 셀 */
-[data-testid="stDataFrame"] [role="cell"][data-testid*="Number"],
-[data-testid="stDataFrame"] [data-col-index] [style*="text-align: right"] {
-  color: var(--accent-number) !important;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-/* ─── Slider (DESIGN_SYSTEM 4 — KT RED handle/track) ─── */
-.stSlider [role="slider"] {
-  background: var(--kt-red) !important;
-  border-color: var(--kt-red) !important;
-}
-[data-testid="stStatus"] { border-radius: var(--radius-lg) !important; }
-
-/* ─── Toast / Alert (DESIGN_SYSTEM 6 - 에러 alert KT RED) ─── */
-[data-testid="stAlert"] [role="alert"] {
-  border-radius: var(--radius-sm) !important;
-  font-family: "Noto Sans KR", sans-serif !important;
-}
-
-/* ─── Hide Streamlit chrome (사이드바 toggle은 유지) ─── */
-footer { visibility: hidden; }
-#MainMenu { visibility: hidden; }
-/* stToolbar 자체는 숨기지 않음 — 그 안에 stExpandSidebarButton(햄버거)가
-   있어서 숨기면 모바일에서 사이드바를 열 수 없음. 대신 안의 deploy/share
-   같은 Streamlit 자체 actions 만 숨김. */
-[data-testid="stToolbarActions"] { display: none !important; }
-[data-testid="stDecoration"] { display: none; }
-[data-testid="stAppDeployButton"] { display: none; }
-/* header는 그대로 — 사이드바 toggle이 거기 있음 */
-
-/* ─── Mobile (≤ 768px) ─── */
-@media (max-width: 768px) {
-  /* 전체 body 폰트 축소 */
-  html, body, .stApp { font-size: 14px !important; }
-  .brand-bar { padding: 12px 14px; }
-  .brand-title { font-size: 1.05rem !important; }
-  .brand-sub { font-size: 0.78rem !important; }
-  h1 { font-size: 1.3rem !important; }
-  h2 { font-size: 1.15rem !important; }
-  h3 { font-size: 1rem !important; }
-  p, span, div { font-size: 0.85rem; }
-  [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
-  .desktop-only { display: none; }
-  [data-testid="stDataFrame"] { font-size: 0.78rem; }
-  [data-testid="stDataFrame"] th,
-  [data-testid="stDataFrame"] td { padding: 4px 6px !important; }
-  .block-container {
-    padding: 0.7rem 0.6rem !important;
-    max-width: 100vw !important;
-  }
-  .stButton button { font-size: 0.85rem !important; padding: 0.4rem 0.8rem !important; }
-  .kw-chip { font-size: 0.72rem !important; padding: 1px 6px !important; }
-  [data-testid="stMetricValue"] { font-size: 1.1rem !important; }
-  [data-testid="stMetricLabel"] { font-size: 0.75rem !important; }
-}
-/* ─── Small mobile (≤ 480px): 더 축소 ─── */
-@media (max-width: 480px) {
-  html, body, .stApp { font-size: 13px !important; }
-  .brand-title { font-size: 0.95rem !important; }
-  [data-testid="stDataFrame"] { font-size: 0.72rem; }
-}
-</style>
-"""
+from dashboard._kt_design import KT_CSS as CUSTOM_CSS  # KT Engineering Design System
 
 
 # ────────────────────────────────────────────────────────────────
@@ -1612,14 +876,20 @@ def main() -> None:
             "현재는 ALIO 데이터만 수집됩니다."
         )
 
-    # ── Brand bar ──────────────────────────────────────────
+    # ── Hero masthead (KT engineering — DESIGN_SYSTEM 5-2) ──
     db_mtime = load_db_meta(str(db_path))
     last_update = humanize_since(db_mtime) if db_mtime else "없음"
     st.markdown(
         f"""
-        <div class="brand-bar">
-          <div class="brand-title">국내 입찰공고 현황</div>
-          <div class="brand-sub">마지막 수집 · <b>{last_update}</b></div>
+        <div class="kt-hero">
+          <div class="kt-hero-left">
+            <div class="kt-hero-eyebrow">BID DASHBOARD</div>
+            <h1 class="kt-hero-title">국내 입찰공고 현황</h1>
+          </div>
+          <div class="kt-hero-meta">
+            <div class="kt-hero-meta-label">LAST COLLECT</div>
+            <div class="kt-hero-meta-value">{last_update}</div>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -1683,15 +953,54 @@ def main() -> None:
     # tab_bid, tab_permit = st.tabs(["입찰 공고", "인허가 현황"])
     # _tab_ctx = tab_bid.__enter__()
 
-    # ── Section 1: 상단 그룹 필터 체크박스 (중복 선택 가능) ──
+    # ── Section 1: KPI strip + Source segment ──
     today_counts = load_counts(str(db_path), today.isoformat())
     total_counts = load_counts(str(db_path), None)
 
     group_counts = {g: sum(today_counts.get(s, 0) for s in srcs)
                     for g, srcs in SOURCE_GROUPS.items()}
+    group_totals = {g: sum(total_counts.get(s, 0) for s in srcs)
+                    for g, srcs in SOURCE_GROUPS.items()}
     total_today = sum(today_counts.values())
+    total_db = sum(total_counts.values())
 
-    # Streamlit은 이미 렌더된 widget key에 직접 할당 불가 → on_click 콜백 사용.
+    def _kpi_card(label: str, value_int: int, meta_html: str,
+                  accent: str = "") -> str:
+        """KPI 카드 한 장. accent: '', 'primary', 'info', 'success', 'vip'."""
+        accent_cls = f" kt-accent-{accent}" if accent else ""
+        return (
+            f'<div class="kt-kpi-card{accent_cls}">'
+            f'  <div class="kt-kpi-label">{label}</div>'
+            f'  <div class="kt-kpi-value">{value_int:,}</div>'
+            f'  <div class="kt-kpi-meta">{meta_html}</div>'
+            f'</div>'
+        )
+
+    def _delta(today_n: int) -> str:
+        if today_n <= 0:
+            return "오늘 신규 없음"
+        return (f"오늘 <span class='kt-kpi-meta-strong'>+{today_n:,}</span>")
+
+    kpi_cards = "".join([
+        _kpi_card("오늘 수집",   total_today, f"DB 전체 <span class='kt-kpi-meta-strong'>{total_db:,}</span>건",
+                  accent="primary"),
+        _kpi_card("나라장터",    group_totals.get("나라장터", 0),
+                  _delta(group_counts.get("나라장터", 0))),
+        _kpi_card("누리장터",    group_totals.get("누리장터", 0),
+                  _delta(group_counts.get("누리장터", 0))),
+        _kpi_card("기타·LH·KEPCO", group_totals.get("기타", 0),
+                  _delta(group_counts.get("기타", 0))),
+    ])
+    st.markdown(f'<div class="kt-kpi-grid">{kpi_cards}</div>',
+                unsafe_allow_html=True)
+
+    # ── Source pill segment (다중 선택 가능) ───────────────────
+    # 현재 mcard_* session_state 모델을 그대로 쓰되, 시각은 pill 토글로.
+    # 기본값은 위 _misc_defaults 에서 모두 True. 사용자가 클릭 시 토글.
+    def _toggle_group(group_name: str):
+        key = f"mcard_{group_name}"
+        st.session_state[key] = not st.session_state.get(key, True)
+
     def _select_all_groups():
         for _g in SOURCE_GROUPS:
             st.session_state[f"mcard_{_g}"] = True
@@ -1700,25 +1009,36 @@ def main() -> None:
         for _g in SOURCE_GROUPS:
             st.session_state[f"mcard_{_g}"] = False
 
-    # 전체 섹션을 container 로 감싸 모바일 컴팩트 CSS 스코프 만듦
-    with st.container(key="src_filter_section"):
-        st.markdown("<div class='src-section-title'>오늘의 수집 현황</div>",
+    with st.container(
+        horizontal=True,
+        horizontal_alignment="left",
+        vertical_alignment="center",
+        gap="small",
+        key="source_pills",
+    ):
+        for g in SOURCE_GROUPS.keys():
+            active = st.session_state.get(f"mcard_{g}", True)
+            cnt = group_counts.get(g, 0)
+            label = (f"{g} · {cnt:,}" if cnt > 0
+                     else f"{g}")
+            st.button(
+                label,
+                key=f"src_pill_{g}",
+                type=("primary" if active else "secondary"),
+                on_click=_toggle_group, args=(g,),
+                help=f"{g} 그룹 표시/숨김 (오늘 +{cnt:,} · 전체 {group_totals.get(g, 0):,})",
+            )
+        # spacer + 우측 부가 액션 (전체/해제)
+        st.markdown("<div class='kt-action-spacer'></div>",
                     unsafe_allow_html=True)
-        cbx_cols = st.columns([1.3, 1.3, 1.3, 1, 1])
-        for i, g in enumerate(SOURCE_GROUPS.keys()):
-            cbx_cols[i].checkbox(f"{g} ({group_counts.get(g, 0):,})",
-                                  key=f"mcard_{g}")
-        cbx_cols[3].button("전체", width="stretch", key="mcard_all_btn",
-                            on_click=_select_all_groups,
-                            help="3개 그룹 모두 체크 (전체 표시와 동일)")
-        cbx_cols[4].button("해제", width="stretch", key="mcard_clear_btn",
-                            on_click=_clear_all_groups,
-                            help="모두 해제 (= 전체 표시)")
+        st.button("전체", key="mcard_all_btn",
+                  on_click=_select_all_groups,
+                  help="3개 그룹 모두 표시")
+        st.button("해제", key="mcard_clear_btn",
+                  on_click=_clear_all_groups,
+                  help="모두 숨김")
 
     # 체크된 그룹들의 소스 유니언 → source_filter
-    # - 전부 체크 (= 전체 버튼) : 전체 표시
-    # - 아무것도 체크 안됨     : 0건 (__NONE__ 이라는 존재하지 않는 소스로 필터)
-    # - 부분 체크              : 해당 그룹만
     _checked = [g for g in SOURCE_GROUPS
                 if st.session_state.get(f"mcard_{g}", False)]
     if set(_checked) == set(SOURCE_GROUPS.keys()):
@@ -1735,28 +1055,18 @@ def main() -> None:
         st.session_state["source_filter"] = srcs
         current_sources = srcs
 
-    # 요약 캡션
-    group_totals = {g: sum(total_counts.get(s, 0) for s in srcs)
-                    for g, srcs in SOURCE_GROUPS.items()}
-    st.markdown(
-        f"<div class='section-hint'>오늘 <b>{total_today:,}건</b> · "
-        f"DB 전체 <b>{sum(total_counts.values()):,}건</b> — "
-        + " · ".join(f"{g} {v:,}" for g, v in group_totals.items())
-        + "</div>",
-        unsafe_allow_html=True,
-    )
-
     # ── Sidebar (live-reactive 필터) ────────────────────────
     with st.sidebar:
-        # KT engineering CI 로고 (DESIGN_SYSTEM 3-1: 사이드바=다크 배경 → 다크 로고)
+        # KT engineering CI 로고 + product label (DESIGN_SYSTEM 3-1)
         st.markdown(
             '<div class="kt-sidebar-brand">'
             '<img src="/app/static/logos/kt-engineering-dark.png" '
             'alt="kt engineering" />'
-            '</div>',
+            '</div>'
+            '<div class="kt-sidebar-product">BID DASHBOARD</div>',
             unsafe_allow_html=True,
         )
-        st.markdown("### 필터")
+        st.markdown("### FILTERS · 필터")
 
         # 필터 위젯: 모두 key=로 session_state 자동 바인드 → 입력 변경 시 즉시 반영
         st.multiselect("업종", bid_type_options, key="f_bid_types_input")
@@ -1815,7 +1125,7 @@ def main() -> None:
                   help="모든 필터 입력을 config.yaml의 기본값으로 복원 (체크박스는 유지)")
 
         st.markdown("---")
-        st.markdown("### 작업")
+        st.markdown("### ACTIONS · 작업")
 
         # 공고일 범위 (조회하기 바로 위)
         st.date_input("공고일 범위", key="f_date_range_input",
@@ -1855,7 +1165,7 @@ def main() -> None:
 
         # ── 마감 임박 알림 임계 ──
         st.markdown("---")
-        st.markdown("### 마감 임박 알림")
+        st.markdown("### ALERTS · 마감 임박 알림")
         st.slider("D-n 임계 (n일 이내 마감 시 알림)",
                   min_value=1, max_value=14, value=3,
                   key="f_dday_threshold_input",
@@ -1884,7 +1194,7 @@ def main() -> None:
 
         # ── 메일링 수신자 관리 ──
         st.markdown("---")
-        st.markdown("### 메일링")
+        st.markdown("### MAILING · 메일링")
         with st.expander("수신자 관리", expanded=False):
             current_recipients = recipients_mod.load()
             cfg_recipients = ((config.get("notifier") or {}).get("email", {})
