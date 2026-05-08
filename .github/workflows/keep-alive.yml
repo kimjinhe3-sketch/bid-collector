@@ -1,0 +1,51 @@
+name: Keep-Alive (prevent Streamlit sleep)
+
+# Streamlit Community Cloud 무료 티어는 일정 시간 (8시간~7일, 변동) 트래픽이 없으면
+# 앱을 sleep 시킨다. 한 번 sleep 들어가면 단순 GET 으로는 안 깨고 사용자가
+# "Yes, get this app back up!" 버튼을 직접 눌러야 한다.
+#
+# → 짧은 주기로 GET 을 날려서 sleep 자체에 안 들어가게 한다.
+#   (이미 깨어있는 앱에 대한 GET 은 Streamlit 의 활동 카운터를 리셋한다.)
+#
+# daily-collect.yml 의 18:00 KST push 는 sleep 에서 깨우는 fail-safe.
+# 이 워크플로우는 "애초에 sleep 에 안 들어가게" 하는 예방책.
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'   # 2시간 간격 (UTC 매시 정각)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keep-alive
+  cancel-in-progress: true   # 직전 핑이 안 끝났으면 새 핑이 우선
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping prod
+        run: |
+          curl -fsSL --retry 2 --max-time 60 \
+               -A "GH-Actions-KeepAlive" \
+               https://bidlivekorea.streamlit.app/      > /dev/null \
+            || echo "prod ping failed (continuing)"
+
+      - name: Ping test
+        run: |
+          curl -fsSL --retry 2 --max-time 60 \
+               -A "GH-Actions-KeepAlive" \
+               https://bidlivekorea-test.streamlit.app/ > /dev/null \
+            || echo "test ping failed (continuing)"
+
+      - name: Ping Streamlit health endpoints (real activity signal)
+        run: |
+          curl -fsSL --retry 2 --max-time 30 \
+               https://bidlivekorea.streamlit.app/_stcore/health      > /dev/null \
+            || echo "prod /_stcore/health failed (probably sleeping)"
+          curl -fsSL --retry 2 --max-time 30 \
+               https://bidlivekorea-test.streamlit.app/_stcore/health > /dev/null \
+            || echo "test /_stcore/health failed (probably sleeping)"
