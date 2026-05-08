@@ -876,37 +876,21 @@ def main() -> None:
             "현재는 ALIO 데이터만 수집됩니다."
         )
 
-    # ── Hero masthead (KT engineering — DESIGN_SYSTEM 5-2) ──
+    # ── Page header (compact, single-line) ──
     db_mtime = load_db_meta(str(db_path))
     last_update = humanize_since(db_mtime) if db_mtime else "없음"
     st.markdown(
         f"""
-        <div class="kt-hero">
-          <div class="kt-hero-left">
-            <div class="kt-hero-eyebrow">BID DASHBOARD</div>
-            <h1 class="kt-hero-title">국내 입찰공고 현황</h1>
-          </div>
-          <div class="kt-hero-meta">
-            <span class="kt-hero-meta-dot"></span>
-            <span class="kt-hero-meta-text">
-              <span class="kt-hero-meta-label">LAST COLLECT</span>
-              <span class="kt-hero-meta-value">{last_update}</span>
-            </span>
+        <div class="kt-pageheader">
+          <h1 class="kt-pageheader-title">국내 입찰공고 현황</h1>
+          <div class="kt-pageheader-status">
+            <span class="kt-dot"></span>
+            마지막 수집 <strong>{last_update}</strong>
           </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-
-    # ── First-run notice (DB 비어있어도 사이드바·UI 는 정상 렌더) ──
-    # st.stop() 을 쓰면 사이드바가 등록되지 않아 모바일 햄버거 버튼이
-    # 사라짐. 대신 안내만 표시하고 계속 진행 (사이드바의 '지금 수집' 사용).
-    if load_counts(str(db_path), None) == {}:
-        st.info(
-            "아직 수집된 데이터가 없습니다. "
-            "👈 좌측 사이드바의 **지금 수집** 버튼을 눌러주세요. "
-            "(모바일은 좌상단 햄버거 → 사이드바)"
-        )
 
     # ── Session state defaults ──
     # Live-reactive: 모든 필터 입력은 f_*_input key로 session_state에 자동 바인드.
@@ -956,7 +940,7 @@ def main() -> None:
     # tab_bid, tab_permit = st.tabs(["입찰 공고", "인허가 현황"])
     # _tab_ctx = tab_bid.__enter__()
 
-    # ── Section 1: KPI strip + Source segment ──
+    # ── Section 1: Hero stat block (신문 헤드라인 식 거대 수치 1개) ──
     today_counts = load_counts(str(db_path), today.isoformat())
     total_counts = load_counts(str(db_path), None)
 
@@ -967,102 +951,93 @@ def main() -> None:
     total_today = sum(today_counts.values())
     total_db = sum(total_counts.values())
 
-    def _kpi_card(label: str, value_int: int, meta_html: str,
-                  accent: str = "") -> str:
-        """KPI 카드 한 장. accent: '', 'primary', 'info', 'success', 'vip'."""
-        accent_cls = f" kt-accent-{accent}" if accent else ""
-        return (
-            f'<div class="kt-kpi-card{accent_cls}">'
-            f'  <div class="kt-kpi-label">{label}</div>'
-            f'  <div class="kt-kpi-value">{value_int:,}</div>'
-            f'  <div class="kt-kpi-meta">{meta_html}</div>'
+    # Hero stat — 데이터 없을 때 / 오늘 +0건 / 오늘 +N건 세 가지 상태
+    if total_db == 0:
+        stat_html = (
+            '<div class="kt-stat kt-stat-zero">'
+            '  <div class="kt-stat-eyebrow">TODAY</div>'
+            '  <div class="kt-stat-row">'
+            '    <div class="kt-stat-number">'
+            '      <span class="kt-stat-num-value">0</span>'
+            '      <span class="kt-stat-num-unit">건</span>'
+            '    </div>'
+            '    <div class="kt-stat-caption">'
+            '      아직 수집된 데이터가 없습니다. <strong>좌측 사이드바 → 지금 수집</strong>으로 시작하세요.'
+            '    </div>'
+            '  </div>'
+            '</div>'
+        )
+    else:
+        bd_items = []
+        for g, total_n in group_totals.items():
+            today_n = group_counts.get(g, 0)
+            bd_items.append(
+                f'<span class="kt-stat-bd-item">{g} <strong>{today_n:,}</strong></span>'
+            )
+        breakdown_html = (
+            "".join(bd_items)
+            + '<span class="kt-stat-bd-divider"></span>'
+            + f'<span class="kt-stat-bd-meta">DB 전체 <strong>{total_db:,}</strong>건</span>'
+        )
+        if total_today > 0:
+            caption = "오늘 새로 수집된 공고"
+        else:
+            caption = "오늘 새로 수집된 건은 없습니다"
+        stat_html = (
+            f'<div class="kt-stat">'
+            f'  <div class="kt-stat-eyebrow">TODAY</div>'
+            f'  <div class="kt-stat-row">'
+            f'    <div class="kt-stat-number">'
+            f'      <span class="kt-stat-num-value">{total_today:,}</span>'
+            f'      <span class="kt-stat-num-unit">건</span>'
+            f'    </div>'
+            f'    <div class="kt-stat-caption">{caption}</div>'
+            f'  </div>'
+            f'  <div class="kt-stat-breakdown">{breakdown_html}</div>'
             f'</div>'
         )
+    st.markdown(stat_html, unsafe_allow_html=True)
 
-    def _delta(today_n: int) -> str:
-        if today_n <= 0:
-            return "오늘 신규 없음"
-        return (f"오늘 <span class='kt-kpi-meta-strong'>+{today_n:,}</span>")
+    # ── Source segment + result count (table toolbar) ──
+    # st.segmented_control (multi-select) 으로 깔끔한 segmented 토글.
+    # 기존 mcard_* session_state 와 호환 위해 결과를 다시 매핑.
+    group_names = list(SOURCE_GROUPS.keys())
+    # 라벨에 카운트 포함
+    group_options = {g: f"{g} {group_counts.get(g, 0):,}" for g in group_names}
+    # 초기 default: 모두 선택 (mcard_X = True 인 것들)
+    _default_selected = [g for g in group_names
+                         if st.session_state.get(f"mcard_{g}", True)]
 
-    # KPI 4카드 — DESIGN_SYSTEM 1-4 시맨틱 매핑으로 각 카드 다른 accent
-    #   primary(KT RED) 오늘 수집 — brand statement
-    #   info(KT BLUE)   나라장터  — 정보·핵심 소스
-    #   success(KT TEAL)누리장터  — 완료/성공 톤
-    #   vip(KT PURPLE)  기타     — 강조 (LH·KEPCO 등 특수 카테고리)
-    kpi_cards = "".join([
-        _kpi_card("오늘 수집",   total_today,
-                  f"DB 전체 <span class='kt-kpi-meta-strong'>{total_db:,}</span>건",
-                  accent="primary"),
-        _kpi_card("나라장터",    group_totals.get("나라장터", 0),
-                  _delta(group_counts.get("나라장터", 0)),
-                  accent="info"),
-        _kpi_card("누리장터",    group_totals.get("누리장터", 0),
-                  _delta(group_counts.get("누리장터", 0)),
-                  accent="success"),
-        _kpi_card("기타·LH·KEPCO", group_totals.get("기타", 0),
-                  _delta(group_counts.get("기타", 0)),
-                  accent="vip"),
-    ])
-    st.markdown(f'<div class="kt-kpi-grid">{kpi_cards}</div>',
-                unsafe_allow_html=True)
+    # st.segmented_control 의 default 는 처음 한 번만 적용. 이후엔 key 의
+    # session_state 를 따른다. 따라서 첫 렌더 시 mcard 와 sync 하기 위해
+    # session_state["src_segment"] 를 명시 초기화.
+    if "src_segment" not in st.session_state:
+        st.session_state["src_segment"] = _default_selected
 
-    # ── Source pill segment (다중 선택 가능) ───────────────────
-    # 현재 mcard_* session_state 모델을 그대로 쓰되, 시각은 pill 토글로.
-    # 기본값은 위 _misc_defaults 에서 모두 True. 사용자가 클릭 시 토글.
-    def _toggle_group(group_name: str):
-        key = f"mcard_{group_name}"
-        st.session_state[key] = not st.session_state.get(key, True)
+    selected_groups = st.segmented_control(
+        "소스 그룹",
+        options=group_names,
+        format_func=lambda g: group_options[g],
+        selection_mode="multi",
+        default=_default_selected,
+        key="src_segment",
+        label_visibility="collapsed",
+    ) or []
 
-    def _select_all_groups():
-        for _g in SOURCE_GROUPS:
-            st.session_state[f"mcard_{_g}"] = True
+    # mcard_X 세션 동기화 (다른 코드와의 호환)
+    for g in group_names:
+        st.session_state[f"mcard_{g}"] = (g in selected_groups)
 
-    def _clear_all_groups():
-        for _g in SOURCE_GROUPS:
-            st.session_state[f"mcard_{_g}"] = False
-
-    with st.container(
-        horizontal=True,
-        horizontal_alignment="left",
-        vertical_alignment="center",
-        gap="small",
-        key="source_pills",
-    ):
-        for g in SOURCE_GROUPS.keys():
-            active = st.session_state.get(f"mcard_{g}", True)
-            cnt = group_counts.get(g, 0)
-            label = (f"{g} · {cnt:,}" if cnt > 0
-                     else f"{g}")
-            st.button(
-                label,
-                key=f"src_pill_{g}",
-                type=("primary" if active else "secondary"),
-                on_click=_toggle_group, args=(g,),
-                help=f"{g} 그룹 표시/숨김 (오늘 +{cnt:,} · 전체 {group_totals.get(g, 0):,})",
-            )
-        # spacer + 우측 부가 액션 (전체/해제)
-        st.markdown("<div class='kt-action-spacer'></div>",
-                    unsafe_allow_html=True)
-        st.button("전체", key="mcard_all_btn",
-                  on_click=_select_all_groups,
-                  help="3개 그룹 모두 표시")
-        st.button("해제", key="mcard_clear_btn",
-                  on_click=_clear_all_groups,
-                  help="모두 숨김")
-
-    # 체크된 그룹들의 소스 유니언 → source_filter
-    _checked = [g for g in SOURCE_GROUPS
-                if st.session_state.get(f"mcard_{g}", False)]
-    if set(_checked) == set(SOURCE_GROUPS.keys()):
+    # 체크된 그룹 → source_filter
+    if set(selected_groups) == set(group_names):
         st.session_state["source_filter"] = []
         current_sources = []
-    elif not _checked:
-        # 존재하지 않는 source 값을 넣어 DB WHERE 절에서 0건 보장
+    elif not selected_groups:
         st.session_state["source_filter"] = ["__NONE__"]
         current_sources = ["__NONE__"]
     else:
         srcs = []
-        for g in _checked:
+        for g in selected_groups:
             srcs.extend(SOURCE_GROUPS[g])
         st.session_state["source_filter"] = srcs
         current_sources = srcs
@@ -1136,7 +1111,6 @@ def main() -> None:
                   on_click=_reset_filters_cb,
                   help="모든 필터 입력을 config.yaml의 기본값으로 복원 (체크박스는 유지)")
 
-        st.markdown("---")
         st.markdown("### ACTIONS · 작업")
 
         # 공고일 범위 (조회하기 바로 위)
@@ -1176,7 +1150,6 @@ def main() -> None:
             st.rerun()
 
         # ── 마감 임박 알림 임계 ──
-        st.markdown("---")
         st.markdown("### ALERTS · 마감 임박 알림")
         st.slider("D-n 임계 (n일 이내 마감 시 알림)",
                   min_value=1, max_value=14, value=3,
@@ -1207,7 +1180,6 @@ def main() -> None:
                     st.warning(msg)
 
         # ── 메일링 수신자 관리 ──
-        st.markdown("---")
         st.markdown("### MAILING · 메일링")
         with st.expander("수신자 관리", expanded=False):
             current_recipients = recipients_mod.load()
@@ -1368,8 +1340,7 @@ def main() -> None:
         key="bidtable_titlebar",
     ):
         st.markdown(
-            f"<div class='tbl-title'>📋 <b>입찰 공고 리스트</b> · "
-            f"검색 결과 <b>{len(df):,}</b>건</div>",
+            f"<div class='tbl-title'>검색 결과 <b>{len(df):,}</b>건</div>",
             unsafe_allow_html=True,
         )
         if len(df) > 0:
