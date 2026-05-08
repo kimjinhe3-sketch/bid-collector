@@ -1,15 +1,17 @@
 [theme]
+# KT Engineering Design System (design/DESIGN_SYSTEM.md 준수)
 base = "light"
-primaryColor = "#1f6feb"
-backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f6f8fa"
-textColor = "#1f2328"
+primaryColor = "#FE2E36"             # kt-red (디지털 표준)
+backgroundColor = "#FFFFFF"           # kt-white
+secondaryBackgroundColor = "#F8F8F8"  # 카드/사이드바 보조 배경
+textColor = "#000000"                 # kt-black
 font = "sans serif"
 
 [server]
 headless = true
 runOnSave = false
 maxUploadSize = 50
+enableStaticServing = true   # static/ 디렉토리를 /app/static/ URL 로 노출 (KT Flow 폰트용)
 
 [browser]
 gatherUsageStats = false

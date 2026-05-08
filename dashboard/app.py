@@ -90,71 +90,143 @@ SOURCE_LABELS = {
 
 CUSTOM_CSS = """
 <style>
-/* ─────────────── Design spec (warm coral palette) ─────────────── */
+/* @import 는 반드시 다른 CSS rule 보다 앞에 — Noto Sans KR (한글 fallback) */
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap");
+
+/* ═════════════════════════════════════════════════════════════════
+   KT Engineering Design System (design/DESIGN_SYSTEM.md 준수)
+   - Primary: kt-red #FE2E36
+   - Mono: kt-black / kt-dark-gray / kt-light-gray / kt-white
+   - 보조: kt-purple #AA50FF · kt-blue #00A5FF · kt-teal #00BEAC
+   - 폰트: KT Flow (Black/Bold/Medium/Thin) + Noto Sans KR (한글 fallback)
+   - 반경: 기본 8px / 카드 12px / 칩 round-full
+   ═════════════════════════════════════════════════════════════════ */
+
+/* ─── KT Flow 4종 self-host (static/fonts via enableStaticServing) ─── */
+@font-face {
+  font-family: "KT Flow";
+  src: url("/app/static/fonts/KTFlow-Thin.ttf") format("truetype");
+  font-weight: 100 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "KT Flow";
+  src: url("/app/static/fonts/KTFlow-Medium.ttf") format("truetype");
+  font-weight: 400 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "KT Flow";
+  src: url("/app/static/fonts/KTFlow-Bold.ttf") format("truetype");
+  font-weight: 600 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "KT Flow";
+  src: url("/app/static/fonts/KTFlow-Black.ttf") format("truetype");
+  font-weight: 800 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  /* Primary action */
-  --color-primary: #D85A30;
-  --color-primary-hover: #993C1D;
-  --color-border: #D3D1C7;
-  /* Tags */
-  --tag-include-bg: #FAECE7;
-  --tag-include-text: #993C1D;
-  --tag-include-border: #F5C4B3;
-  --tag-exclude-bg: #F1EFE8;
-  --tag-exclude-text: #5F5E5A;
-  --tag-exclude-border: #D3D1C7;
-  /* Typography hierarchy */
-  --text-primary: #2C2C2A;    /* H1/H2 */
-  --text-heading: #444441;    /* H3 */
-  --text-body: #5F5E5A;       /* 본문 */
-  --text-muted: #888780;      /* 보조 */
-  /* Accent */
-  --link: #185FA5;
-  --accent-number: #D85A30;
-  /* Surfaces */
-  --bg-page: #FAF9F5;
+  /* ── Primary (kt-red — 디지털 표준) ── */
+  --kt-red: #FE2E36;
+  --kt-red-hover: #E62831;       /* 90% 강도 */
+  --kt-red-soft: #FFE5E6;        /* 배경/배지용 옅은 톤 */
+  --kt-red-bi: #ED2024;          /* BI 인쇄용 (PDF 출력 시에만) */
+
+  /* ── Matching (보조 의미 매핑) ── */
+  --kt-purple: #AA50FF;          /* 강조·VIP·승인 */
+  --kt-blue:   #00A5FF;          /* 정보·링크·필터 */
+  --kt-teal:   #00BEAC;          /* 성공·수주·완료 */
+  --kt-amber:  #F59E0B;          /* 결정 임박 (pipeline 가이드) */
+
+  /* ── Mono ── */
+  --kt-black:      #000000;
+  --kt-dark-gray:  #4C4C4E;
+  --kt-light-gray: #A2A4A3;
+  --kt-white:      #FFFFFF;
+
+  /* ── Surfaces ── */
+  --bg-page:    #FFFFFF;
   --bg-surface: #FFFFFF;
-  --bg-sidebar: #F1EFE8;
-  --border-line: #D3D1C7;
-  /* Legacy aliases (기존 코드 호환) */
-  --bg: #FAF9F5;
-  --bg-soft: #F1EFE8;
-  --card: #FFFFFF;
-  --fg: #2C2C2A;
-  --fg-muted: #888780;
-  --border: #D3D1C7;
-  --border-strong: #B8B5AC;
-  --accent: #D85A30;
-  --accent-hover: #993C1D;
-  --accent-soft: #FAECE7;
-  --danger: #993C1D;
-  --success: #7C8F52;
-  --radius-sm: 8px;
-  --radius: 10px;
-  --radius-lg: 14px;
+  --bg-soft:    #F8F8F8;         /* 카드 배경 보조 */
+  --bg-sidebar: #000000;         /* DESIGN_SYSTEM 5-1: KT BLACK */
+
+  /* ── Borders ── */
+  --border-line:   #E5E5E5;
+  --border-strong: #A2A4A3;
+
+  /* ── Typography (semantic) ── */
+  --text-primary: #000000;       /* H1/H2 */
+  --text-heading: #4C4C4E;       /* H3 */
+  --text-body:    #4C4C4E;       /* 본문 */
+  --text-muted:   #A2A4A3;       /* 보조 */
+  --link:         #00A5FF;       /* kt-blue */
+
+  /* ── Semantic (CRM 도메인 매핑, DESIGN_SYSTEM 1-4) ── */
+  --success: #00BEAC;            /* kt-teal — 수주·완료 */
+  --info:    #00A5FF;            /* kt-blue */
+  --warning: #F59E0B;            /* amber */
+  --danger:  #FE2E36;            /* kt-red — 위험·실주·삭제 */
+  --vip:     #AA50FF;            /* kt-purple */
+
+  /* ── 강조 (수치) ── */
+  --accent-number: #FE2E36;
+  --accent-soft:   #FFE5E6;
+
+  /* ── Legacy aliases (기존 코드 호환) ── */
+  --accent:        #FE2E36;
+  --accent-hover:  #E62831;
+  --bg:            #FFFFFF;
+  --card:          #FFFFFF;
+  --fg:            #000000;
+  --fg-muted:      #A2A4A3;
+  --border:        #E5E5E5;
+
+  /* ── Radius (DESIGN_SYSTEM 4) ── */
+  --radius-sm: 8px;              /* 기본 */
+  --radius:    8px;
+  --radius-lg: 12px;             /* 카드 */
+  --radius-pill: 999px;          /* 칩/배지 */
+
+  /* ── Tags (kw-chip) — KT include/exclude 매핑 ── */
+  --tag-include-bg:     #FFE5E6; /* kt-red soft */
+  --tag-include-text:   #FE2E36;
+  --tag-include-border: #FFB8BB;
+  --tag-exclude-bg:     #F8F8F8;
+  --tag-exclude-text:   #4C4C4E;
+  --tag-exclude-border: #E5E5E5;
 }
 
 html, body, .stApp { background: var(--bg) !important; }
 
-/* 한글 친화 폰트 — 전역 기본만 설정 (Material Icons는 건드리지 않음) */
+/* ─── 글로벌 폰트 스택 (DESIGN_SYSTEM 2-2/2-3) ───
+   KT Flow 우선 → 한글은 자동으로 Noto Sans KR fallback.
+   한글 본문 (text-sm 이하) 은 가독성 위해 Noto Sans KR. */
 body, .stApp {
-  font-family: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo",
-               Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "KT Flow", "Noto Sans KR", "Apple SD Gothic Neo",
+               -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--fg);
   letter-spacing: -0.003em;
   -webkit-font-smoothing: antialiased;
 }
 
-/* 명시적 요소들만 !important — 아이콘 span은 제외 */
+/* 명시적 요소들만 !important — 아이콘 span 은 제외 */
 .stMarkdown, .stMarkdown p, .stMarkdown li, .stMarkdown span,
 .stTextInput input, .stTextArea textarea,
 .stDateInput input, .stNumberInput input,
 .stButton > button, .stDownloadButton > button,
 [data-testid="stCheckbox"] label, label, p {
-  font-family: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo",
-               Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-family: "KT Flow", "Noto Sans KR", "Apple SD Gothic Neo",
+               -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
   color: var(--fg);
 }
+
 
 /* Material Icons / Symbols — Streamlit Cloud 모바일에서 자체 폰트가
    안 들어오는 경우 Google Fonts CDN 폴백 (위에서 link 로 preload).
@@ -178,33 +250,72 @@ span[class*="material-icons"], span[class*="material-symbols"],
   -webkit-font-smoothing: antialiased !important;
 }
 
-/* Typography hierarchy per design spec */
-h1, h2, .brand-title {
+/* ─── Typography hierarchy (DESIGN_SYSTEM 2-3) ───
+   text-2xl font-bold → 페이지 타이틀 (24/700, KT Flow Bold)
+   text-lg  font-bold → 섹션 타이틀 (18/700)
+   text-base font-medium → 본문 강조 (16/500)
+   text-sm  → 본문 (14/400 Noto Sans KR)
+   text-xs  → 메타 (12/400) */
+h1, .brand-title {
   color: var(--text-primary) !important;
-  font-weight: 600 !important;
+  font-family: "KT Flow", "Noto Sans KR", sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 1.5rem !important;     /* 24px = text-2xl */
   letter-spacing: -0.015em !important;
+}
+h2 {
+  color: var(--text-primary) !important;
+  font-family: "KT Flow", "Noto Sans KR", sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 1.25rem !important;
+  letter-spacing: -0.01em !important;
 }
 h3 {
   color: var(--text-heading) !important;
-  font-size: 1.05rem !important;
-  font-weight: 600 !important;
+  font-family: "KT Flow", "Noto Sans KR", sans-serif !important;
+  font-size: 1.125rem !important;   /* 18px = text-lg */
+  font-weight: 700 !important;
   margin: 1.2rem 0 0.5rem 0 !important;
   letter-spacing: -0.01em !important;
 }
 p, .stMarkdown, body { color: var(--text-body); }
 .section-hint, [data-testid="stCaptionContainer"] { color: var(--text-muted) !important; }
 
-/* ─── Brand bar ─── */
+/* 대시보드 핵심 수치 — text-3xl font-black KT Flow Black */
+[data-testid="stMetricValue"] {
+  font-family: "KT Flow", "Noto Sans KR", sans-serif !important;
+  font-weight: 900 !important;
+  font-size: 1.875rem !important;   /* 30px */
+  color: var(--text-primary) !important;
+  letter-spacing: -0.02em !important;
+}
+[data-testid="stMetricLabel"] {
+  font-family: "Noto Sans KR", sans-serif !important;
+  font-weight: 500 !important;
+  font-size: 0.8125rem !important;
+  color: var(--text-muted) !important;
+}
+
+/* ─── Brand bar (헤더 카드 — DESIGN_SYSTEM 5-2) ─── */
 .brand-bar {
   background: var(--card);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-line);
   border-radius: var(--radius-lg);
   padding: 18px 22px;
-  margin-bottom: 20px;
-  box-shadow: 0 1px 2px rgba(61, 57, 41, 0.04);
+  margin-bottom: 24px;               /* DESIGN_SYSTEM 5-4: 섹션 24px */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
-.brand-title { font-size: 1.4rem; margin: 0; }
-.brand-sub { font-size: 0.82rem; color: var(--fg-muted); margin-top: 4px; }
+.brand-title {
+  font-size: 1.4rem; margin: 0;
+  font-family: "KT Flow", "Noto Sans KR", sans-serif !important;
+  font-weight: 700 !important;
+}
+.brand-sub {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-family: "Noto Sans KR", sans-serif;
+}
 
 /* ─── Section hints ─── */
 .section-hint {
@@ -212,13 +323,14 @@ p, .stMarkdown, body { color: var(--text-body); }
   margin: -0.3rem 0 0.75rem 0;
 }
 
-/* ─── Tag chips (warm coral spec) ─── */
+/* ─── Tag chips (DESIGN_SYSTEM 4 — Chip / round-full) ─── */
 .kw-chip {
   display: inline-block; padding: 3px 10px; margin: 3px 4px 3px 0;
   background: var(--tag-include-bg);
   color: var(--tag-include-text);
   border: 1px solid var(--tag-include-border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
+  font-family: "Noto Sans KR", sans-serif;
   font-size: 0.78rem; font-weight: 500;
   line-height: 1.5;
 }
@@ -232,62 +344,77 @@ p, .stMarkdown, body { color: var(--text-body); }
 .empty-state {
   text-align: center; padding: 44px 20px;
   background: var(--card); border: 1px dashed var(--border-strong);
-  border-radius: var(--radius); color: var(--fg-muted);
+  border-radius: var(--radius-lg); color: var(--text-muted);
 }
 
-/* ─── Buttons (Claude warm) ─── */
+/* ─── Buttons (DESIGN_SYSTEM 6 — KT RED primary, hover 90% 강도) ─── */
 .stButton > button {
-  border-radius: var(--radius-sm) !important;
-  border: 1px solid var(--border) !important;
-  background: var(--card) !important;
-  color: var(--fg) !important;
+  border-radius: var(--radius-sm) !important;     /* 8px */
+  border: 1px solid var(--border-line) !important;
+  background: var(--bg-surface) !important;
+  color: var(--kt-black) !important;
+  font-family: "KT Flow", "Noto Sans KR", sans-serif !important;
   font-weight: 500 !important;
   font-size: 0.88rem !important;
-  padding: 0.4rem 0.95rem !important;
-  transition: all 0.12s ease !important;
+  padding: 0.45rem 1rem !important;
+  transition: all 0.15s ease !important;            /* DESIGN_SYSTEM 6 */
   box-shadow: none !important;
 }
 .stButton > button:hover {
-  border-color: var(--border-strong) !important;
-  background: #fdfcf7 !important;
+  border-color: var(--kt-black) !important;
+  background: #FAFAFA !important;
 }
+.stButton > button:focus-visible {
+  outline: 2px solid var(--kt-red) !important;
+  outline-offset: 2px !important;
+}
+/* Primary 버튼 — KT RED */
 .stButton > button[kind="primary"],
 .stButton > button[kind="primary"] *,
 .stButton > button[kind="primary"] p,
 .stButton > button[kind="primary"] span,
 .stButton > button[kind="primary"] div {
-  background: var(--accent) !important;
-  color: #ffffff !important;
-  border: 1px solid var(--accent) !important;
-  -webkit-text-fill-color: #ffffff !important;
+  background: var(--kt-red) !important;
+  color: #FFFFFF !important;
+  border: 1px solid var(--kt-red) !important;
+  -webkit-text-fill-color: #FFFFFF !important;
+  font-weight: 600 !important;
 }
-.stButton > button[kind="primary"] svg { fill: #ffffff !important; }
+.stButton > button[kind="primary"] svg { fill: #FFFFFF !important; }
 .stButton > button[kind="primary"]:hover,
 .stButton > button[kind="primary"]:hover * {
-  background: var(--accent-hover) !important;
-  border-color: var(--accent-hover) !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
+  background: var(--kt-red-hover) !important;
+  border-color: var(--kt-red-hover) !important;
+  color: #FFFFFF !important;
+  -webkit-text-fill-color: #FFFFFF !important;
 }
 
-/* ─── Inputs ─── */
+/* ─── Inputs (DESIGN_SYSTEM 6 — focus 2px outline + 2px offset) ─── */
 .stTextInput input, .stTextArea textarea,
 .stDateInput input, .stNumberInput input,
 .stSelectbox > div > div, .stMultiSelect > div > div {
   border-radius: var(--radius-sm) !important;
-  border: 1px solid var(--border) !important;
-  background: var(--card) !important;
+  border: 1px solid var(--border-line) !important;
+  background: var(--bg-surface) !important;
+  font-family: "Noto Sans KR", sans-serif !important;
   font-size: 0.88rem !important;
-  color: var(--fg) !important;
+  color: var(--kt-black) !important;
+}
+.stTextInput input:focus, .stTextArea textarea:focus,
+.stDateInput input:focus, .stNumberInput input:focus {
+  border-color: var(--kt-red) !important;
+  box-shadow: 0 0 0 3px var(--kt-red-soft) !important;
+  outline: none !important;
 }
 
-/* ─── Multiselect 선택된 태그 (업종 등) — 코랄 팔레트 ─── */
+/* ─── Multiselect 선택 태그 (업종) — KT RED soft 칩 ─── */
 .stMultiSelect [data-baseweb="tag"],
 [data-baseweb="tag"] {
   background-color: var(--tag-include-bg) !important;
   color: var(--tag-include-text) !important;
   border: 1px solid var(--tag-include-border) !important;
-  border-radius: 999px !important;
+  border-radius: var(--radius-pill) !important;
+  font-family: "Noto Sans KR", sans-serif !important;
   font-weight: 500 !important;
 }
 .stMultiSelect [data-baseweb="tag"] span,
@@ -300,21 +427,102 @@ p, .stMarkdown, body { color: var(--text-body); }
   fill: var(--tag-include-text) !important;
   color: var(--tag-include-text) !important;
 }
-.stTextInput input:focus, .stTextArea textarea:focus,
-.stDateInput input:focus, .stNumberInput input:focus {
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px var(--accent-soft) !important;
-  outline: none !important;
-}
 
-/* ─── Sidebar (warm soft) ─── */
-/* 폭/배경만 커스터마이즈. transform/visibility/display 는 건드리지 않아
-   Streamlit 기본 접기/펼치기 애니메이션이 정상 동작하게 둔다. */
+/* ═══════════════════════════════════════════════════════════════
+   Sidebar (DESIGN_SYSTEM 5-1)
+   - 너비: 240px (w-60)
+   - 배경: KT BLACK #000000
+   - 텍스트: KT WHITE / hover 시 white/10 overlay
+   - active: 좌측 4px KT RED 인디케이터
+   ═══════════════════════════════════════════════════════════════ */
 [data-testid="stSidebar"] {
-  background: var(--bg-soft);
-  border-right: 1px solid var(--border);
-  width: 21rem;
-  min-width: 21rem;
+  background: var(--bg-sidebar) !important;       /* KT BLACK */
+  border-right: none !important;
+  width: 15rem !important;                          /* 240px */
+  min-width: 15rem !important;
+}
+/* 사이드바 모든 텍스트 — 흰색, KT Flow */
+[data-testid="stSidebar"] *,
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] span,
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] div,
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {
+  color: var(--kt-white) !important;
+  -webkit-text-fill-color: var(--kt-white) !important;
+}
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3,
+[data-testid="stSidebar"] h4 {
+  color: var(--kt-white) !important;
+  font-family: "KT Flow", "Noto Sans KR", sans-serif !important;
+}
+/* 사이드바 input — 어두운 배경 위 구분 잘 되게 */
+[data-testid="stSidebar"] input,
+[data-testid="stSidebar"] textarea,
+[data-testid="stSidebar"] [data-baseweb="input"] > div,
+[data-testid="stSidebar"] [data-baseweb="select"] > div {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  color: var(--kt-white) !important;
+}
+[data-testid="stSidebar"] input:focus,
+[data-testid="stSidebar"] textarea:focus {
+  border-color: var(--kt-red) !important;
+  box-shadow: 0 0 0 2px rgba(254, 46, 54, 0.35) !important;
+}
+/* 사이드바 button — secondary 는 dark glass, primary 는 KT RED */
+[data-testid="stSidebar"] .stButton > button {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  color: var(--kt-white) !important;
+}
+[data-testid="stSidebar"] .stButton > button:hover {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: rgba(255, 255, 255, 0.30) !important;
+}
+[data-testid="stSidebar"] .stButton > button[kind="primary"] {
+  background: var(--kt-red) !important;
+  border-color: var(--kt-red) !important;
+  color: #FFFFFF !important;
+}
+[data-testid="stSidebar"] .stButton > button[kind="primary"]:hover {
+  background: var(--kt-red-hover) !important;
+  border-color: var(--kt-red-hover) !important;
+}
+/* 사이드바 슬라이더 — KT RED 트랙 */
+[data-testid="stSidebar"] .stSlider [role="slider"] {
+  background: var(--kt-red) !important;
+  border-color: var(--kt-red) !important;
+}
+[data-testid="stSidebar"] .stSlider [data-baseweb="slider"] > div > div {
+  background: var(--kt-red) !important;
+}
+/* 사이드바 체크박스 — 흰 외곽, KT RED 채움 */
+[data-testid="stSidebar"] [data-testid="stCheckbox"] [data-baseweb="checkbox"] [aria-checked="true"] > div {
+  background: var(--kt-red) !important;
+  border-color: var(--kt-red) !important;
+}
+/* active 인디케이터 — 좌측 4px KT RED bar 시뮬레이션 (.kt-active 클래스 부여 시) */
+[data-testid="stSidebar"] .kt-nav-item {
+  position: relative;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+}
+[data-testid="stSidebar"] .kt-nav-item:hover {
+  background: rgba(255, 255, 255, 0.10);
+}
+[data-testid="stSidebar"] .kt-nav-item.active {
+  background: rgba(255, 255, 255, 0.15);
+}
+[data-testid="stSidebar"] .kt-nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 6px; bottom: 6px;
+  width: 4px;
+  background: var(--kt-red);
+  border-radius: 2px;
 }
 /* 접기/펼치기 버튼 항상 보이게 (버전별 test-id 모두 커버) */
 [data-testid="collapsedControl"],
@@ -344,35 +552,30 @@ p, .stMarkdown, body { color: var(--text-body); }
 /* 태블릿 (≤ 900px): 사이드바 살짝 좁게 */
 @media (max-width: 900px) {
   [data-testid="stSidebar"] {
-    width: 17rem;
-    min-width: 17rem;
+    width: 14rem !important;
+    min-width: 14rem !important;
   }
 }
-/* 모바일 (≤ 640px): 사이드바 폭 + 햄버거 버튼 강제 노출 */
+/* 모바일 (≤ 640px): 사이드바 폭 + 햄버거 버튼 KT RED 강조 */
 @media (max-width: 640px) {
-  /* 사이드바가 펼쳐졌을 때 화면 폭 대부분 차지 */
   [data-testid="stSidebar"][aria-expanded="true"] {
     width: 85vw !important;
     min-width: 0 !important;
     max-width: 85vw !important;
   }
-  /* 햄버거 버튼은 Streamlit 기본 위치 (stHeader 안 좌상단) 그대로.
-     우리는 강조만 — 테두리/배경/아이콘 색만 부여하고 크기·위치는 건드리지 않음
-     (이전에 position:fixed 로 옮기려다 button 이 0×0 이 됨) */
+  /* 햄버거 버튼 — KT RED 강조 (DESIGN_SYSTEM 5-3 모바일 인디케이터 톤) */
   [data-testid="collapsedControl"],
   [data-testid="stSidebarCollapsedControl"],
   [data-testid="stExpandSidebarButton"] {
     background: var(--bg-surface) !important;
-    border: 1px solid var(--accent) !important;
-    border-radius: 8px !important;
-    box-shadow: 0 2px 6px rgba(216, 90, 48, 0.18) !important;
+    border: 1px solid var(--kt-red) !important;
+    border-radius: var(--radius-sm) !important;
+    box-shadow: 0 2px 6px rgba(254, 46, 54, 0.20) !important;
   }
-  /* 아이콘 색만 강조 (크기는 Streamlit 기본 유지) */
   [data-testid="stExpandSidebarButton"] svg,
   [data-testid="stExpandSidebarButton"] [data-testid="stIconMaterial"] {
-    color: var(--accent) !important;
+    color: var(--kt-red) !important;
   }
-  /* 모바일에서 stHeader 가 표시 영역 위로 가도록 z-index */
   [data-testid="stHeader"] { z-index: 999 !important; }
   /* 사이드바 내부 폰트·여백 축소 */
   [data-testid="stSidebar"] .block-container {
@@ -391,14 +594,35 @@ p, .stMarkdown, body { color: var(--text-body); }
   }
   [data-testid="stSidebar"] .stSlider { font-size: 0.75rem; }
 }
+/* 사이드바 섹션 헤딩 — 톤다운된 light gray (KT BLACK 배경 위 구분 라벨) */
 [data-testid="stSidebar"] h3 {
-  font-family: "Pretendard Variable", Pretendard, sans-serif !important;
+  font-family: "KT Flow", "Noto Sans KR", sans-serif !important;
   font-size: 0.78rem !important;
-  color: var(--fg-muted) !important;
+  color: var(--kt-light-gray) !important;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-weight: 600 !important;
   margin: 1.2rem 0 0.4rem 0 !important;
+}
+
+/* ─── 사이드바 KT engineering 로고 (DESIGN_SYSTEM 3-2) ───
+   여백: 데스크톱 16px, 모바일 12px. 최소 높이: 데스크톱 28px, 모바일 24px. */
+.kt-sidebar-brand {
+  padding: 16px;
+  margin: -1rem -1rem 12px -1rem;   /* 사이드바 block-container 안쪽 negative margin 으로 폭 채움 */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+.kt-sidebar-brand img {
+  height: 28px;
+  width: auto;
+  display: block;
+}
+@media (max-width: 640px) {
+  .kt-sidebar-brand { padding: 12px; }
+  .kt-sidebar-brand img { height: 24px; }
 }
 
 /* ─── Checkboxes ─── */
@@ -406,10 +630,10 @@ p, .stMarkdown, body { color: var(--text-body); }
 
 /* ─── 소스 필터 섹션 헤딩 ─── */
 .src-section-title {
-  font-family: "Pretendard Variable", Pretendard, sans-serif;
+  font-family: "KT Flow", "Noto Sans KR", sans-serif;
   font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--fg);
+  font-weight: 700;
+  color: var(--kt-white);
   margin: 0 0 0.4rem 0;
   padding: 0;
 }
@@ -482,29 +706,30 @@ p, .stMarkdown, body { color: var(--text-body); }
   margin-top: 0 !important;
 }
 
-/* ─── 엑셀 다운로드 아이콘 (우상단·작게·옅은 색) ─── */
+/* ─── 엑셀 다운로드 버튼 (작고 KT RED 톤다운) ─── */
 [data-testid="stDownloadButton"] button {
   background: transparent !important;
-  color: rgba(120, 95, 80, 0.6) !important;
-  border: 1px solid rgba(216, 90, 48, 0.2) !important;
+  color: var(--kt-light-gray) !important;
+  border: 1px solid rgba(254, 46, 54, 0.25) !important;
   padding: 2px 10px !important;
+  font-family: "KT Flow", "Noto Sans KR", sans-serif !important;
   font-size: 0.72rem !important;
   font-weight: 500 !important;
   min-height: 28px !important;
   height: 28px !important;
-  border-radius: 8px !important;
+  border-radius: var(--radius-sm) !important;
   box-shadow: none !important;
   transition: all 0.15s ease;
 }
 [data-testid="stDownloadButton"] button:hover {
-  background: rgba(216, 90, 48, 0.06) !important;
-  color: var(--accent) !important;
-  border-color: rgba(216, 90, 48, 0.45) !important;
+  background: var(--kt-red-soft) !important;
+  color: var(--kt-red) !important;
+  border-color: var(--kt-red) !important;
 }
 
-/* ─── Dataframe (spec colors) ─── */
+/* ─── Dataframe (DESIGN_SYSTEM 4 — Data Table) ─── */
 [data-testid="stDataFrame"] {
-  border-radius: var(--radius) !important;
+  border-radius: var(--radius-lg) !important;       /* 12px (카드) */
   overflow: hidden;
   border: 1px solid var(--border-line);
   background: var(--bg-surface);
@@ -543,9 +768,18 @@ p, .stMarkdown, body { color: var(--text-body); }
   font-variant-numeric: tabular-nums;
 }
 
-/* ─── Slider ─── */
-.stSlider [role="slider"] { background: var(--accent) !important; }
-[data-testid="stStatus"] { border-radius: var(--radius) !important; }
+/* ─── Slider (DESIGN_SYSTEM 4 — KT RED handle/track) ─── */
+.stSlider [role="slider"] {
+  background: var(--kt-red) !important;
+  border-color: var(--kt-red) !important;
+}
+[data-testid="stStatus"] { border-radius: var(--radius-lg) !important; }
+
+/* ─── Toast / Alert (DESIGN_SYSTEM 6 - 에러 alert KT RED) ─── */
+[data-testid="stAlert"] [role="alert"] {
+  border-radius: var(--radius-sm) !important;
+  font-family: "Noto Sans KR", sans-serif !important;
+}
 
 /* ─── Hide Streamlit chrome (사이드바 toggle은 유지) ─── */
 footer { visibility: hidden; }
@@ -980,7 +1214,7 @@ def render_kw_chips(include: list[str], exclude: list[str]) -> str:
         parts.append(f'<span class="kw-chip">+ {kw}</span>')
     for kw in exclude:
         parts.append(f'<span class="kw-chip ex">- {kw}</span>')
-    return " ".join(parts) if parts else "<span style='color:#6b7280'>(설정된 키워드 없음)</span>"
+    return " ".join(parts) if parts else "<span style='color:#A2A4A3'>(설정된 키워드 없음)</span>"
 
 
 # ────────────────────────────────────────────────────────────────
@@ -1514,6 +1748,14 @@ def main() -> None:
 
     # ── Sidebar (live-reactive 필터) ────────────────────────
     with st.sidebar:
+        # KT engineering CI 로고 (DESIGN_SYSTEM 3-1: 사이드바=다크 배경 → 다크 로고)
+        st.markdown(
+            '<div class="kt-sidebar-brand">'
+            '<img src="/app/static/logos/kt-engineering-dark.png" '
+            'alt="kt engineering" />'
+            '</div>',
+            unsafe_allow_html=True,
+        )
         st.markdown("### 필터")
 
         # 필터 위젯: 모두 key=로 session_state 자동 바인드 → 입력 변경 시 즉시 반영
@@ -1823,25 +2065,33 @@ def main() -> None:
 
     if len(df) > 0:
         # NEW 배지: "N" 값에 연노랑 배경 + 검정 볼드 + 가운데 정렬.
-        # pandas Styler 는 st.dataframe 에서 CSS 로 렌더됨.
-        # pandas 2.1+ 는 Styler.map(), 이전 버전은 Styler.applymap() — 버전 호환.
+        # pandas Styler — KT Design System 시맨틱 매핑 (DESIGN_SYSTEM 1-4)
+        #   신규(new) = 강조 → kt-purple soft (VIP/주목)
+        #   마감(지남) = 비활성 → kt-light-gray
+        #   D-day, D-1 = 위험 → kt-red soft
+        #   D-2, D-3   = 결정 임박 → amber
+        #   D-4~7      = amber soft (덜 긴급)
         def _style_new(v):
             if v == "new":
-                return ("background-color: #FFF59D; color: #000000; "
+                # kt-purple soft 배경 + kt-purple 진한 텍스트 (강조 매핑)
+                return ("background-color: #F2E8FE; color: #7C3AED; "
                         "font-weight: 800; text-align: center;")
             return ""
 
-        # 마감임박 D-n 셀 색상: D-day/D-1 빨강, D-2~3 주황, D-4~7 노랑, '마감' 회색
         def _style_dn(v):
             if not isinstance(v, str) or not v:
                 return ""
             base = "font-weight:700; text-align:center;"
             if v == "마감":
-                return base + " background-color:#E5E7EB; color:#6B7280;"
+                # 비활성 — kt-light-gray
+                return base + " background-color:#E5E5E5; color:#4C4C4E;"
             if v in ("D-day", "D-1"):
-                return base + " background-color:#FECACA; color:#991B1B;"
+                # 위험 — kt-red soft + kt-red
+                return base + " background-color:#FFE5E6; color:#FE2E36;"
             if v in ("D-2", "D-3"):
+                # 결정 임박 — amber
                 return base + " background-color:#FED7AA; color:#9A3412;"
+            # D-4~7 — amber soft
             return base + " background-color:#FEF3C7; color:#92400E;"
 
         _styler = df.style
