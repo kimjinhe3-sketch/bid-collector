@@ -57,6 +57,13 @@ def _parse_xml_items(xml_text: str) -> tuple[list[dict], int]:
     return items, total
 
 
+def _normalize_date(raw: str | None) -> str:
+    """LH 가 "2026/05/04 10:00" 슬래시 포맷으로 주는 거 → "2026-05-04 10:00"."""
+    if not raw:
+        return ""
+    return raw.replace("/", "-").strip()
+
+
 def _normalize(item: dict) -> dict | None:
     bid_no = item.get("bidNum") or item.get("bidNm")
     title = item.get("bidnmKor") or item.get("bidNm")
@@ -81,8 +88,8 @@ def _normalize(item: dict) -> dict | None:
         "region": region,
         "contract_method": item.get("cntrctMthdNm") or "",
         "estimated_price": _safe_int(item.get("presmtPrc")),
-        "open_date": item.get("tndrdocAcptBgninDtm") or "",
-        "close_date": item.get("tndrdocAcptEndDtm") or "",
+        "open_date": _normalize_date(item.get("tndrdocAcptBgninDtm")),
+        "close_date": _normalize_date(item.get("tndrdocAcptEndDtm")),
         "bid_type": "공사",  # LH 는 대부분 건설/공사 — 정확 분류는 추후
         "detail_url": None,  # LH 는 자체 URL 없음 (ebid.lh.or.kr 로그인 필요)
     }

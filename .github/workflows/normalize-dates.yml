@@ -1,0 +1,30 @@
+name: Normalize Dates (one-off)
+
+# 일회성 마이그레이션 — close_date / open_date 의 LH 슬래시 / D2B·KEPCO 디지트 포맷을
+# 표준 "YYYY-MM-DD HH:MM[:SS]" 로 정규화 + bid_source_counts view 재생성.
+#
+# 사용:
+#   GitHub repo → Actions → "Normalize Dates (one-off)" → Run workflow
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  normalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'requirements.txt'
+      - run: pip install -r requirements.txt
+      - name: Run normalize_dates
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -m scripts.normalize_dates

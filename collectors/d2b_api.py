@@ -58,6 +58,26 @@ def _safe_int(v) -> int | None:
         return None
 
 
+def _normalize_d2b_date(raw) -> str:
+    """D2B 가 "20260429" / "202605111100" / "20260429120000" 등 디지트만 주는 거 정규화.
+    - 8자리: YYYY-MM-DD
+    - 12자리: YYYY-MM-DD HH:MM
+    - 14자리: YYYY-MM-DD HH:MM:SS
+    - 그 외 (이미 dash 등): 그대로
+    """
+    if raw in (None, ""):
+        return ""
+    s = str(raw).strip()
+    if s.isdigit():
+        if len(s) == 8:
+            return f"{s[0:4]}-{s[4:6]}-{s[6:8]}"
+        if len(s) == 12:
+            return f"{s[0:4]}-{s[4:6]}-{s[6:8]} {s[8:10]}:{s[10:12]}"
+        if len(s) == 14:
+            return f"{s[0:4]}-{s[4:6]}-{s[6:8]} {s[8:10]}:{s[10:12]}:{s[12:14]}"
+    return s
+
+
 def _yesterday_range(now: datetime | None = None, lookback_days: int = 1) -> tuple[str, str]:
     now = now or datetime.now()
     end = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(seconds=1)
@@ -82,8 +102,8 @@ def _normalize(item: dict, source: str, bid_type: str) -> dict | None:
         "org_name": _pick(item, FIELD_MAP["org_name"]),
         "contract_method": _pick(item, FIELD_MAP["contract_method"]),
         "estimated_price": _safe_int(_pick(item, FIELD_MAP["estimated_price"])),
-        "open_date": _pick(item, FIELD_MAP["open_date"]),
-        "close_date": _pick(item, FIELD_MAP["close_date"]),
+        "open_date": _normalize_d2b_date(_pick(item, FIELD_MAP["open_date"])),
+        "close_date": _normalize_d2b_date(_pick(item, FIELD_MAP["close_date"])),
         "bid_type": bid_type,
         "detail_url": _pick(item, FIELD_MAP["detail_url"]),
     }
