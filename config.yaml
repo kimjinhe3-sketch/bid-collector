@@ -1,7 +1,7 @@
 collection:
   sources:
     g2b_api: true
-    alio: true
+    alio: false         # 나라장터(G2B)와 중복 + 데이터 품질 낮아 폐기
     g2b_crawler: false   # deprecated (엔드포인트 사망)
     d2b_api: true        # 국방전자조달 (G2B 서비스키 공용)
     kwater_api: true     # 한국수자원공사 K-water (G2B 서비스키 공용, 4 오퍼레이션)
