@@ -70,7 +70,7 @@ jobs:
           http_code=$(curl -s -o /tmp/kepco-resp.json -w "%{http_code}" \
             -X POST "${CLOUDTYPE_URL%/}/api/collect-kepco" \
             -H "X-Collect-Secret: $COLLECT_SECRET" \
-            -H "X-Lookback-Days: 14" \
+            -H "X-Lookback-Days: 30" \
             --max-time 90)
           echo "← HTTP $http_code"
           cat /tmp/kepco-resp.json
