@@ -19,7 +19,7 @@ from datetime import date, timedelta
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-GRACE_DAYS = 7  # 마감 후 며칠 보존
+GRACE_DAYS = 0  # 마감 즉시 삭제 (close_date < 오늘 = 정리 대상)
 
 
 def main() -> int:
@@ -33,21 +33,21 @@ def main() -> int:
     print(f"→ 정리 cutoff: close_date < {cutoff} 이고 영업대표 미할당 row")
 
     # close_date 형식 다양 (예: '2026-05-29 17:00', '20260529170000', '2026-05-29').
-    # 안전한 비교 — replace('-','') 후 substring(1,8) 으로 YYYYMMDD 추출.
-    sql_count = """
-        SELECT COUNT(*) AS n FROM bid_announcements
+    # 안전 가드:
+    #   - close_date NOT NULL + 빈 string 아님 (LH collector 가 '' 저장 가능)
+    #   - replace('-','') 후 8자리 이상 (YYYYMMDD 추출 가능한 길이)
+    #   - 첫 8자리가 모두 숫자
+    where_clause = """
         WHERE close_date IS NOT NULL
+          AND close_date != ''
+          AND length(replace(close_date, '-', '')) >= 8
+          AND substring(replace(close_date, '-', ''), 1, 8) ~ '^[0-9]{8}$'
           AND substring(replace(close_date, '-', ''), 1, 8) <
               to_char(%s::date, 'YYYYMMDD')
           AND id NOT IN (SELECT DISTINCT bid_id FROM bid_assignees)
     """
-    sql_delete = """
-        DELETE FROM bid_announcements
-        WHERE close_date IS NOT NULL
-          AND substring(replace(close_date, '-', ''), 1, 8) <
-              to_char(%s::date, 'YYYYMMDD')
-          AND id NOT IN (SELECT DISTINCT bid_id FROM bid_assignees)
-    """
+    sql_count = f"SELECT COUNT(*) AS n FROM bid_announcements {where_clause}"
+    sql_delete = f"DELETE FROM bid_announcements {where_clause}"
 
     with _postgres.connect() as conn:
         with conn.cursor() as cur:
