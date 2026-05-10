@@ -81,6 +81,12 @@ jobs:
             exit 1
           fi
 
+      - name: 마감 지난 row 정리 (close_date < 오늘-7일, 영업대표 할당 제외)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python scripts/cleanup_old_bids.py
+        continue-on-error: true   # 정리 실패해도 워크플로우 전체 fail 시키지 않음
+
       - name: Warm Streamlit apps (선택 — 마이그레이션 완료 시 제거)
         run: |
           curl -fsSL --max-time 30 https://bidlivekorea.streamlit.app/      > /dev/null || true
