@@ -1,18 +1,22 @@
-name: Keep-Alive (prevent Streamlit sleep)
+name: Keep-Alive (Cloudtype + legacy Streamlit)
 
-# Streamlit Community Cloud 무료 티어는 일정 시간 (8시간~7일, 변동) 트래픽이 없으면
-# 앱을 sleep 시킨다. 한 번 sleep 들어가면 단순 GET 으로는 안 깨고 사용자가
-# "Yes, get this app back up!" 버튼을 직접 눌러야 한다.
+# Cloudtype 무료(Sandbox) 플랜은 15분 무활동 → sleep 모드.
+# 10분 간격 핑으로 sleep 예방. GH Actions cron 은 평균 5~10분 지연이 있어
+# 10분 cron + 15분 threshold = 안전 마진.
 #
-# → 짧은 주기로 GET 을 날려서 sleep 자체에 안 들어가게 한다.
-#   (이미 깨어있는 앱에 대한 GET 은 Streamlit 의 활동 카운터를 리셋한다.)
+# 필요 Secret:
+#   CLOUDTYPE_URL  — 본인 Cloudtype 사이트 URL
+#                    (예: https://port-0-bidlive-korea-web-xxx.cloudtype.app)
 #
-# daily-collect.yml 의 18:00 KST push 는 sleep 에서 깨우는 fail-safe.
-# 이 워크플로우는 "애초에 sleep 에 안 들어가게" 하는 예방책.
+# (참고) Streamlit 핑은 retire 예정이라 빈도 낮춤 (1시간).
+# (참고) GitHub Actions 무료 한도 = 2000분/월 (Private repo).
+#  10분 cron = 144회/일 = ~4300분/월 → 한도 초과 위험.
+#  bid-collector repo 를 Public 으로 전환하면 Actions 무제한 (코드만 있고
+#  데이터·시크릿은 Settings 에 있어 Public 이어도 안전).
 
 on:
   schedule:
-    - cron: '0 */2 * * *'   # 2시간 간격 (UTC 매시 정각)
+    - cron: '*/10 * * * *'   # 10분 간격
   workflow_dispatch: {}
 
 permissions:
@@ -20,32 +24,35 @@ permissions:
 
 concurrency:
   group: keep-alive
-  cancel-in-progress: true   # 직전 핑이 안 끝났으면 새 핑이 우선
+  cancel-in-progress: true
 
 jobs:
   ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 2
     steps:
-      - name: Ping prod
+      - name: Ping Cloudtype (메인 호스팅)
+        env:
+          CLOUDTYPE_URL: ${{ secrets.CLOUDTYPE_URL }}
         run: |
-          curl -fsSL --retry 2 --max-time 60 \
+          if [ -z "$CLOUDTYPE_URL" ]; then
+            echo "CLOUDTYPE_URL secret 미설정 — skip"
+            exit 0
+          fi
+          # /bids 가 가장 무거운 엔드포인트라 깨우기 효과 ↑
+          curl -fsSL --retry 2 --max-time 30 \
                -A "GH-Actions-KeepAlive" \
-               https://bidlivekorea.streamlit.app/      > /dev/null \
-            || echo "prod ping failed (continuing)"
+               "${CLOUDTYPE_URL%/}/bids" > /dev/null \
+            || curl -fsSL --retry 2 --max-time 30 "${CLOUDTYPE_URL%/}/" > /dev/null \
+            || echo "cloudtype ping failed (continuing)"
 
-      - name: Ping test
+      - name: Ping legacy Streamlit (선택, 1시간에 한 번 수준)
+        # 매번 핑 안 하고 매시 정각에 가까울 때만 (10분 단위라 6번 중 1번)
+        if: github.event.schedule == null || (github.run_number % 6 == 0)
         run: |
-          curl -fsSL --retry 2 --max-time 60 \
-               -A "GH-Actions-KeepAlive" \
+          curl -fsSL --retry 2 --max-time 30 \
+               https://bidlivekorea.streamlit.app/ > /dev/null \
+            || echo "prod streamlit ping failed (legacy)"
+          curl -fsSL --retry 2 --max-time 30 \
                https://bidlivekorea-test.streamlit.app/ > /dev/null \
-            || echo "test ping failed (continuing)"
-
-      - name: Ping Streamlit health endpoints (real activity signal)
-        run: |
-          curl -fsSL --retry 2 --max-time 30 \
-               https://bidlivekorea.streamlit.app/_stcore/health      > /dev/null \
-            || echo "prod /_stcore/health failed (probably sleeping)"
-          curl -fsSL --retry 2 --max-time 30 \
-               https://bidlivekorea-test.streamlit.app/_stcore/health > /dev/null \
-            || echo "test /_stcore/health failed (probably sleeping)"
+            || echo "test streamlit ping failed (legacy)"
