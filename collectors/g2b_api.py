@@ -56,11 +56,18 @@ def _normalize(item: dict, source: str, bid_type: str) -> dict | None:
         return None
     ord_no = item.get("bidNtceOrd") or ""
     bid_no_full = f"{bid_no}-{ord_no}" if ord_no else str(bid_no)
+    # 지역: 우선순위 — 참가가능지역 > 수요기관지역 > 공고기관지역
+    # G2B API 표준 필드. 시도 단위 ("서울특별시", "경기도", "전국" 등)
+    region = (item.get("prtcptPsblRgnNm")
+              or item.get("dmndInsttRgnNm")
+              or item.get("ntceInsttRgnNm")
+              or None)
     return {
         "source": source,
         "bid_no": bid_no_full,
         "title": title.strip(),
         "org_name": item.get("ntceInsttNm") or item.get("dminsttNm"),
+        "region": region,
         "contract_method": item.get("cntrctCnclsMthdNm"),
         "estimated_price": _safe_int(item.get("presmptPrce") or item.get("asignBdgtAmt")),
         "open_date": item.get("bidNtceDt"),

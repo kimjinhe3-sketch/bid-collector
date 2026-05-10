@@ -26,7 +26,7 @@ from utils.logger import get_logger
 logger = get_logger("bid_collector.db.postgres")
 
 COLUMNS = (
-    "source", "bid_no", "title", "org_name", "contract_method",
+    "source", "bid_no", "title", "org_name", "region", "contract_method",
     "estimated_price", "open_date", "close_date", "bid_type", "detail_url",
 )
 
@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS bid_announcements (
     bid_no          TEXT      NOT NULL,
     title           TEXT      NOT NULL,
     org_name        TEXT,
+    region          TEXT,
     contract_method TEXT,
     estimated_price BIGINT,
     open_date       TEXT,
@@ -47,11 +48,14 @@ CREATE TABLE IF NOT EXISTS bid_announcements (
     is_notified     BOOLEAN     DEFAULT FALSE,
     UNIQUE(source, bid_no)
 );
+-- region 컬럼 추가 (기존 DB 마이그레이션, idempotent)
+ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS region TEXT;
 CREATE INDEX IF NOT EXISTS idx_bids_created  ON bid_announcements(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bids_open     ON bid_announcements(open_date);
 CREATE INDEX IF NOT EXISTS idx_bids_notified ON bid_announcements(is_notified);
 CREATE INDEX IF NOT EXISTS idx_bids_type     ON bid_announcements(bid_type);
 CREATE INDEX IF NOT EXISTS idx_bids_source   ON bid_announcements(source);
+CREATE INDEX IF NOT EXISTS idx_bids_region   ON bid_announcements(region);
 """
 
 # Lazy connection pool — 처음 호출 시 한 번 생성, 이후 재사용

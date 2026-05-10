@@ -100,11 +100,13 @@ def _normalize(item: dict, source: str, bid_type: str) -> dict | None:
     title_str = str(title).strip()
     # 민간 공고는 presmptPrce가 없고 asignBdgtAmt 또는 refAmt 사용
     price = _safe_int(_pick(item, ("refAmt", "asignBdgtAmt", "presmptPrce")))
+    region = _pick(item, ("prtcptPsblRgnNm", "dmndInsttRgnNm", "ntceInsttRgnNm"))
     return {
         "source": source,
         "bid_no": bid_no_full,
         "title": title_str,
         "org_name": _pick(item, ("ntceInsttNm", "dminsttNm")),
+        "region": region,
         "contract_method": item.get("cntrctMthdNm"),
         "estimated_price": price,
         "open_date": _pick(item, ("bidBeginDt", "nticeDt", "bidNtceDt")),

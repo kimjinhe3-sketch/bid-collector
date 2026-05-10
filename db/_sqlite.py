@@ -17,7 +17,7 @@ logger = get_logger("bid_collector.db.sqlite")
 SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
 COLUMNS = (
-    "source", "bid_no", "title", "org_name", "contract_method",
+    "source", "bid_no", "title", "org_name", "region", "contract_method",
     "estimated_price", "open_date", "close_date", "bid_type", "detail_url",
 )
 
@@ -43,6 +43,12 @@ def init_db(db_path: str | Path) -> None:
     schema = SCHEMA_PATH.read_text(encoding="utf-8")
     with connect(db_path) as conn:
         conn.executescript(schema)
+        # 기존 DB 에 region 컬럼 마이그레이션 (idempotent)
+        try:
+            conn.execute("ALTER TABLE bid_announcements ADD COLUMN region TEXT")
+            logger.info("migrated: added region column")
+        except sqlite3.OperationalError:
+            pass  # 이미 있음
     _migrate_stale_alio_urls(db_path)
     _migrate_remove_kapt_rows(db_path)
     _migrate_clear_prvt_google_urls(db_path)

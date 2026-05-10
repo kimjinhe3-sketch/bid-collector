@@ -68,21 +68,17 @@ def _normalize(item: dict) -> dict | None:
         try: return int(float(v))
         except (ValueError, TypeError): return None
 
-    # 참여 지역 zoneRstrct1~4 → 합쳐서 하나의 문자열 (UI 가 지역 추출 시 사용)
+    # 참여 지역 zoneRstrct1~4 → region 컬럼에 별도 저장 (org_name prepend 폐기)
     zones = [item.get(f"zoneRstrct{i}", "").strip() for i in range(1, 5)]
     zones = [z for z in zones if z]
-    region_str = " ".join(zones) if zones else ""
-
-    # org_name 에 LH 표시 + 지역명 prepend (UI 의 _extract_region 활용)
-    org_name = "한국토지주택공사"
-    if region_str:
-        org_name = f"{region_str} {org_name}"
+    region = " ".join(zones) if zones else None
 
     return {
         "source": "lh_api",
         "bid_no": str(bid_no).strip(),
         "title": str(title).strip(),
-        "org_name": org_name,
+        "org_name": "한국토지주택공사",
+        "region": region,
         "contract_method": item.get("cntrctMthdNm") or "",
         "estimated_price": _safe_int(item.get("presmtPrc")),
         "open_date": item.get("tndrdocAcptBgninDtm") or "",
