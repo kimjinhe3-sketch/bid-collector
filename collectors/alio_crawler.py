@@ -44,6 +44,25 @@ def _detail_url(title: str) -> str:
     return f"{LIST_URL}?type=title&word={urllib.parse.quote(keyword)}"
 
 
+def _detect_bid_type(title: str) -> str:
+    """제목 키워드로 bid_type 추정 — ALIO 응답엔 bid_type 필드가 없음.
+    G2B/누리장터의 표준 분류 (물품/용역/공사/외자/기타) 와 호환.
+    """
+    if not title:
+        return "기타"
+    t = title.lower()
+    # 공사 시그니처 (가장 우선 — 흔히 단어가 명확)
+    if any(k in t for k in ["공사", "건설", "신축", "증축", "리모델링", "철거", "보수공사", "토목", "설비공사"]):
+        return "공사"
+    # 용역 시그니처
+    if any(k in t for k in ["용역", "운영", "관리", "유지보수", "컨설팅", "연구", "개발", "구축", "분석", "조사", "설계", "감리", "검사", "교육"]):
+        return "용역"
+    # 물품 시그니처
+    if any(k in t for k in ["구매", "납품", "구입", "임차", "장비", "물품", "기자재", "기기", "시스템", "제작"]):
+        return "물품"
+    return "기타"
+
+
 def _normalize(item: dict) -> dict | None:
     title = item.get("rtitle")
     seq = item.get("seq")
@@ -59,7 +78,7 @@ def _normalize(item: dict) -> dict | None:
         "estimated_price": None,
         "open_date": item.get("bdate"),
         "close_date": item.get("bidInfoEndDt"),
-        "bid_type": "공공기관",
+        "bid_type": _detect_bid_type(title_s),
         "detail_url": _detail_url(title_s),
     }
 
