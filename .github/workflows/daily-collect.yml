@@ -50,8 +50,36 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           G2B_SERVICE_KEY: ${{ secrets.G2B_SERVICE_KEY }}
           LH_SERVICE_KEY: ${{ secrets.LH_SERVICE_KEY }}
-          KEPCO_API_KEY: ${{ secrets.KEPCO_API_KEY }}
+          # KEPCO_API_KEY 는 Python 에서 사용 안 함 (config.yaml kepco_api=false).
+          # Cloudtype 프록시 단계 아래에서 KEPCO_API_KEY 가 사용됨.
         run: python main.py --collect-only
+
+      - name: KEPCO 수집 (Cloudtype 프록시 — 해외 IP 차단 회피)
+        # KEPCO 는 한국 IP 외 차단해서 GH Actions runner 가 직접 호출 불가.
+        # Cloudtype (한국 region) 의 /api/collect-kepco 엔드포인트가
+        # KEPCO API 호출 → Supabase 적재 처리.
+        env:
+          CLOUDTYPE_URL: ${{ secrets.CLOUDTYPE_URL }}
+          COLLECT_SECRET: ${{ secrets.COLLECT_SECRET }}
+        run: |
+          if [ -z "$CLOUDTYPE_URL" ]; then
+            echo "CLOUDTYPE_URL 미설정 — KEPCO 수집 skip"
+            exit 0
+          fi
+          echo "→ POST ${CLOUDTYPE_URL%/}/api/collect-kepco"
+          http_code=$(curl -s -o /tmp/kepco-resp.json -w "%{http_code}" \
+            -X POST "${CLOUDTYPE_URL%/}/api/collect-kepco" \
+            -H "X-Collect-Secret: $COLLECT_SECRET" \
+            -H "X-Lookback-Days: 14" \
+            --max-time 90)
+          echo "← HTTP $http_code"
+          cat /tmp/kepco-resp.json
+          echo
+          # 200 이 아니면 워크플로우 fail (다른 수집은 이미 끝났으니 부분 성공)
+          if [ "$http_code" != "200" ]; then
+            echo "::warning::KEPCO 수집 실패 (HTTP $http_code) — 다른 source 는 정상 적재됨"
+            exit 1
+          fi
 
       - name: Warm Streamlit apps (선택 — 마이그레이션 완료 시 제거)
         run: |
