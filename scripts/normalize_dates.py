@@ -83,6 +83,12 @@ SET open_date = SUBSTR(open_date, 1, 4) || '-' || SUBSTR(open_date, 5, 2) || '-'
                 SUBSTR(open_date, 11, 2) || ':' || SUBSTR(open_date, 13, 2)
 WHERE source = 'kepco_api'
   AND open_date ~ '^[0-9]{14}$';
+
+-- LH detail_url 백필 — eBid 검색 페이지 with s_bidNum prefill (1-click 으로 결과 도달)
+UPDATE bid_announcements
+SET detail_url = 'https://ebid.lh.or.kr/ebid.et.tp.cmd.BidMasterListCmd.dev?s_bidNum=' || bid_no
+WHERE source = 'lh_api'
+  AND (detail_url IS NULL OR detail_url = '');
 """
 
 SQL_REBUILD_VIEW = """

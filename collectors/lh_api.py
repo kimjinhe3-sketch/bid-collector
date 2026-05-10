@@ -64,6 +64,13 @@ def _normalize_date(raw: str | None) -> str:
     return raw.replace("/", "-").strip()
 
 
+# LH eBid 의 공고검색 페이지 — s_bidNum query 로 공고번호 prefill 가능.
+# auto-submit 은 아님 (서버가 hidden CHALLENGE 토큰 검증 의심) → 사용자가 페이지에서 검색 1-click.
+LH_SEARCH_URL_TEMPLATE = (
+    "https://ebid.lh.or.kr/ebid.et.tp.cmd.BidMasterListCmd.dev?s_bidNum={bid_no}"
+)
+
+
 def _normalize(item: dict) -> dict | None:
     bid_no = item.get("bidNum") or item.get("bidNm")
     title = item.get("bidnmKor") or item.get("bidNm")
@@ -91,7 +98,8 @@ def _normalize(item: dict) -> dict | None:
         "open_date": _normalize_date(item.get("tndrdocAcptBgninDtm")),
         "close_date": _normalize_date(item.get("tndrdocAcptEndDtm")),
         "bid_type": "공사",  # LH 는 대부분 건설/공사 — 정확 분류는 추후
-        "detail_url": None,  # LH 는 자체 URL 없음 (ebid.lh.or.kr 로그인 필요)
+        # LH eBid 검색 페이지로 공고번호 prefill 링크 — 사용자가 검색 1-click 으로 결과 도달
+        "detail_url": LH_SEARCH_URL_TEMPLATE.format(bid_no=str(bid_no).strip()),
     }
 
 
