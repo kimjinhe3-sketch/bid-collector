@@ -98,6 +98,14 @@ CREATE VIEW bid_source_counts AS
 SELECT
   source,
   COUNT(*)::bigint AS total,
+  -- 활성 공고 (close_date NULL 이거나 오늘 이후) — KPI 카드 클릭 시 보이는 리스트와 일치
+  COUNT(*) FILTER (
+    WHERE close_date IS NULL
+       OR SUBSTR(close_date, 1, 10) >= to_char(
+            (NOW() AT TIME ZONE 'Asia/Seoul')::date, 'YYYY-MM-DD'
+          )
+  )::bigint AS active,
+  -- 오늘 공고 (open_date 가 KST 오늘)
   COUNT(*) FILTER (
     WHERE SUBSTR(open_date, 1, 10) = to_char(
       (NOW() AT TIME ZONE 'Asia/Seoul')::date, 'YYYY-MM-DD'
