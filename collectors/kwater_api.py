@@ -190,10 +190,12 @@ def collect(
     date_bgn, date_end = _yesterday_range(now, lookback_days)
     logger.info("kwater_api collection range: %s ~ %s", date_bgn, date_end)
 
-    all_rows: list[dict] = []
-    for path, src, bt in OPERATIONS:
+    # OPERATIONS 4개를 ThreadPoolExecutor 로 병렬 — 각 path 가 다른 endpoint 라 충돌 없음
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def _one(path: str, src: str, bt: str) -> list[dict]:
         try:
-            rows = _fetch_operation(
+            return _fetch_operation(
                 service_key=service_key,
                 path=path,
                 source=src,
@@ -206,7 +208,13 @@ def collect(
                 sleep_seconds=sleep_seconds,
                 http_client=http_client,
             )
-            all_rows.extend(rows)
         except Exception:
             logger.exception("kwater_api operation crashed: %s", path)
+            return []
+
+    all_rows: list[dict] = []
+    with ThreadPoolExecutor(max_workers=len(OPERATIONS)) as pool:
+        futures = [pool.submit(_one, p, s, b) for p, s, b in OPERATIONS]
+        for fut in as_completed(futures):
+            all_rows.extend(fut.result())
     return all_rows

@@ -59,10 +59,11 @@ CREATE INDEX IF NOT EXISTS idx_bids_region   ON bid_announcements(region);
 """
 
 # Lazy connection pool — 처음 호출 시 한 번 생성, 이후 재사용
-_POOL: psycopg2.pool.SimpleConnectionPool | None = None
+# ThreadedConnectionPool: main.py 의 source 병렬 수집 시 여러 thread 가 동시 getconn/putconn
+_POOL: psycopg2.pool.ThreadedConnectionPool | None = None
 
 
-def _get_pool() -> psycopg2.pool.SimpleConnectionPool:
+def _get_pool() -> psycopg2.pool.ThreadedConnectionPool:
     global _POOL
     if _POOL is None:
         url = os.environ.get("DATABASE_URL", "")
@@ -72,8 +73,9 @@ def _get_pool() -> psycopg2.pool.SimpleConnectionPool:
         if "sslmode=" not in url:
             sep = "&" if "?" in url else "?"
             url = f"{url}{sep}sslmode=require"
-        _POOL = psycopg2.pool.SimpleConnectionPool(
-            minconn=1, maxconn=4, dsn=url,
+        # maxconn 8: source 5개 + 여유 — 병렬 upsert 동시 처리
+        _POOL = psycopg2.pool.ThreadedConnectionPool(
+            minconn=1, maxconn=8, dsn=url,
             cursor_factory=psycopg2.extras.RealDictCursor,
         )
     return _POOL

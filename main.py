@@ -45,6 +45,13 @@ def _db_path(config: dict) -> Path:
 
 
 def run_collect(config: dict) -> int:
+    """Source 별 collector 를 병렬 실행 (ThreadPoolExecutor).
+    이전: sequential — 합 ~3–5분
+    변경: parallel — critical path = 가장 느린 source (보통 g2b ~60–90s)
+    DB upsert 는 source 끝나는 대로 즉시 (서로 다른 source/bid_no unique 충돌 없음).
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     logger = get_logger()
     sources = (config.get("collection", {}).get("sources") or {})
     sleep_seconds = float(config.get("collection", {}).get("request_sleep_seconds", 1.5))
@@ -54,38 +61,26 @@ def run_collect(config: dict) -> int:
     db_path = _db_path(config)
     database.init_db(db_path)
 
-    total_collected = 0
+    # 각 source 작업을 (name, callable) 로 정의 — enabled 인 것만 묶음
+    tasks: list[tuple[str, callable]] = []
 
     if sources.get("g2b_api"):
         key = os.environ.get("G2B_SERVICE_KEY")
         if not key:
             logger.error("G2B_SERVICE_KEY missing in env — skipping g2b_api")
         else:
-            try:
-                rows = g2b_api.collect_all(
-                    service_key=key,
-                    page_size=page_size,
-                    sleep_seconds=sleep_seconds,
-                    lookback_days=lookback_days,
-                )
-                database.upsert_bids(db_path, rows)
-                total_collected += len(rows)
-            except Exception:
-                logger.exception("g2b_api collection crashed")
+            tasks.append(("g2b_api", lambda k=key: g2b_api.collect_all(
+                service_key=k, page_size=page_size,
+                sleep_seconds=sleep_seconds, lookback_days=lookback_days,
+            )))
 
     if sources.get("alio"):
-        try:
-            alio_cfg = (config.get("collection", {}).get("alio") or {})
-            rows = alio_crawler.collect(
-                word=alio_cfg.get("keyword", ""),
-                max_pages=int(alio_cfg.get("max_pages", 10)),
-                sleep_seconds=sleep_seconds,
-                lookback_days=lookback_days,
-            )
-            database.upsert_bids(db_path, rows)
-            total_collected += len(rows)
-        except Exception:
-            logger.exception("alio collection crashed")
+        alio_cfg = (config.get("collection", {}).get("alio") or {})
+        tasks.append(("alio", lambda: alio_crawler.collect(
+            word=alio_cfg.get("keyword", ""),
+            max_pages=int(alio_cfg.get("max_pages", 10)),
+            sleep_seconds=sleep_seconds, lookback_days=lookback_days,
+        )))
 
     if sources.get("g2b_crawler"):
         # Deprecated stub — legacy endpoint unavailable since site redesign.
@@ -96,17 +91,10 @@ def run_collect(config: dict) -> int:
         if not key:
             logger.warning("D2B/G2B_SERVICE_KEY missing — skipping d2b_api")
         else:
-            try:
-                rows = d2b_api.collect_all(
-                    service_key=key,
-                    page_size=page_size,
-                    sleep_seconds=sleep_seconds,
-                    lookback_days=lookback_days,
-                )
-                database.upsert_bids(db_path, rows)
-                total_collected += len(rows)
-            except Exception:
-                logger.exception("d2b_api collection crashed")
+            tasks.append(("d2b_api", lambda k=key: d2b_api.collect_all(
+                service_key=k, page_size=page_size,
+                sleep_seconds=sleep_seconds, lookback_days=lookback_days,
+            )))
 
     if sources.get("kwater_api"):
         key = os.environ.get("G2B_SERVICE_KEY") or os.environ.get("KWATER_SERVICE_KEY")
@@ -114,34 +102,21 @@ def run_collect(config: dict) -> int:
         if not key or not kwater_cfg.get("base_url"):
             logger.warning("kwater: key or base_url missing — skipping kwater_api")
         else:
-            try:
-                rows = kwater_api.collect(
-                    service_key=key,
-                    base_url=kwater_cfg.get("base_url", ""),
-                    type_param=kwater_cfg.get("type_param", "_type"),
-                    page_size=page_size,
-                    sleep_seconds=sleep_seconds,
-                    lookback_days=lookback_days,
-                )
-                database.upsert_bids(db_path, rows)
-                total_collected += len(rows)
-            except Exception:
-                logger.exception("kwater_api collection crashed")
+            tasks.append(("kwater_api", lambda k=key, c=kwater_cfg: kwater_api.collect(
+                service_key=k, base_url=c.get("base_url", ""),
+                type_param=c.get("type_param", "_type"),
+                page_size=page_size, sleep_seconds=sleep_seconds, lookback_days=lookback_days,
+            )))
 
     if sources.get("prvt_api"):
         key = os.environ.get("G2B_SERVICE_KEY")
         if not key:
             logger.warning("G2B_SERVICE_KEY missing — skipping prvt_api (누리장터)")
         else:
-            try:
-                rows = prvt_api.collect_all(
-                    service_key=key, page_size=page_size,
-                    sleep_seconds=sleep_seconds, lookback_days=lookback_days,
-                )
-                database.upsert_bids(db_path, rows)
-                total_collected += len(rows)
-            except Exception:
-                logger.exception("prvt_api collection crashed")
+            tasks.append(("prvt_api", lambda k=key: prvt_api.collect_all(
+                service_key=k, page_size=page_size,
+                sleep_seconds=sleep_seconds, lookback_days=lookback_days,
+            )))
 
     if sources.get("kepco_api"):
         kepco_key = os.environ.get("KEPCO_API_KEY")
@@ -150,18 +125,12 @@ def run_collect(config: dict) -> int:
             logger.warning("KEPCO_API_KEY missing — skipping kepco_api "
                            "(bigdata.kepco.co.kr에서 별도 발급)")
         else:
-            try:
-                rows = kepco_api.collect(
-                    api_key=kepco_key,
-                    base_url=kepco_cfg.get("base_url") or kepco_api.DEFAULT_BASE_URL,
-                    company_ids=kepco_cfg.get("company_ids") or None,
-                    sleep_seconds=sleep_seconds,
-                    lookback_days=lookback_days,
-                )
-                database.upsert_bids(db_path, rows)
-                total_collected += len(rows)
-            except Exception:
-                logger.exception("kepco_api collection crashed")
+            tasks.append(("kepco_api", lambda k=kepco_key, c=kepco_cfg: kepco_api.collect(
+                api_key=k,
+                base_url=c.get("base_url") or kepco_api.DEFAULT_BASE_URL,
+                company_ids=c.get("company_ids") or None,
+                sleep_seconds=sleep_seconds, lookback_days=lookback_days,
+            )))
 
     if sources.get("lh_api"):
         lh_key = os.environ.get("LH_SERVICE_KEY")
@@ -169,19 +138,39 @@ def run_collect(config: dict) -> int:
             logger.warning("LH_SERVICE_KEY missing — skipping lh_api "
                            "(data.go.kr 15021183 자동승인 키 필요)")
         else:
-            try:
-                rows = lh_api.collect(
-                    service_key=lh_key,
-                    page_size=page_size,
-                    sleep_seconds=sleep_seconds,
-                    lookback_days=lookback_days,
-                )
-                database.upsert_bids(db_path, rows)
-                total_collected += len(rows)
-            except Exception:
-                logger.exception("lh_api collection crashed")
+            tasks.append(("lh_api", lambda k=lh_key: lh_api.collect(
+                service_key=k, page_size=page_size,
+                sleep_seconds=sleep_seconds, lookback_days=lookback_days,
+            )))
 
-    logger.info("collection complete: %d rows total", total_collected)
+    # 병렬 실행 — fetch + upsert 모두 thread 안에서.
+    # DB pool 이 ThreadedConnectionPool 이라 thread-safe, lock 불필요.
+    # 서로 다른 source 라 UNIQUE(source, bid_no) 충돌 없음.
+    import time as _time
+    total_collected = 0
+
+    def _run_one(name: str, fn) -> int:
+        try:
+            t0 = _time.time()
+            rows = fn()
+            t1 = _time.time()
+            database.upsert_bids(db_path, rows)
+            t2 = _time.time()
+            logger.info("[%s] fetched=%d in %.1fs, upsert %.1fs",
+                        name, len(rows), t1 - t0, t2 - t1)
+            return len(rows)
+        except Exception:
+            logger.exception("%s collection crashed", name)
+            return 0
+
+    if tasks:
+        with ThreadPoolExecutor(max_workers=len(tasks)) as pool:
+            futures = {pool.submit(_run_one, n, f): n for n, f in tasks}
+            for fut in as_completed(futures):
+                total_collected += fut.result()
+
+    logger.info("collection complete: %d rows total (parallel %d sources)",
+                total_collected, len(tasks))
     return total_collected
 
 
