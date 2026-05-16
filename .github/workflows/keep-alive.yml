@@ -1,18 +1,15 @@
-name: Keep-Alive (Cloudtype + legacy Streamlit)
+name: Keep Cloudtype Alive
 
-# Cloudtype 무료(Sandbox) 플랜은 15분 무활동 → sleep 모드.
-# 10분 간격 핑으로 sleep 예방. GH Actions cron 은 평균 5~10분 지연이 있어
-# 10분 cron + 15분 threshold = 안전 마진.
+# Cloudtype Sandbox 무료 플랜은 15분 무활동 → sleep 모드 진입.
+# 10분 간격 ping 으로 sleep 차단 → wakeup 비용 (30~60s) 절감 + 사용자 404 방지.
 #
 # 필요 Secret:
-#   CLOUDTYPE_URL  — 본인 Cloudtype 사이트 URL
-#                    (예: https://port-0-bidlive-korea-web-xxx.cloudtype.app)
+#   CLOUDTYPE_URL — Cloudtype 사이트 URL (예: https://port-next-bidlive-korea-web-xxx.cloudtype.app)
+#                   미설정 시 step warning + skip — sleep 보호 안 됨.
 #
-# (참고) Streamlit 핑은 retire 예정이라 빈도 낮춤 (1시간).
-# (참고) GitHub Actions 무료 한도 = 2000분/월 (Private repo).
-#  10분 cron = 144회/일 = ~4300분/월 → 한도 초과 위험.
-#  bid-collector repo 를 Public 으로 전환하면 Actions 무제한 (코드만 있고
-#  데이터·시크릿은 Settings 에 있어 Public 이어도 안전).
+# GH Actions 무료 한도: 2000분/월 (Private repo).
+#   10분 cron × 0.5분 작업 × 144회/일 × 30일 = ~2160분 → 한도 살짝 초과.
+#   bid-collector 를 Public 으로 전환하면 Actions 무제한.
 
 on:
   schedule:
@@ -31,28 +28,28 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Ping Cloudtype (메인 호스팅)
+      - name: Ping Cloudtype
         env:
           CLOUDTYPE_URL: ${{ secrets.CLOUDTYPE_URL }}
         run: |
           if [ -z "$CLOUDTYPE_URL" ]; then
-            echo "CLOUDTYPE_URL secret 미설정 — skip"
+            echo "::warning::CLOUDTYPE_URL secret 미설정 — ping skip (sleep 보호 안 됨)"
             exit 0
           fi
-          # /bids 가 가장 무거운 엔드포인트라 깨우기 효과 ↑
-          curl -fsSL --retry 2 --max-time 30 \
-               -A "GH-Actions-KeepAlive" \
-               "${CLOUDTYPE_URL%/}/bids" > /dev/null \
-            || curl -fsSL --retry 2 --max-time 30 "${CLOUDTYPE_URL%/}/" > /dev/null \
-            || echo "cloudtype ping failed (continuing)"
-
-      - name: Ping legacy Streamlit (선택, 1시간에 한 번 수준)
-        # 매번 핑 안 하고 매시 정각에 가까울 때만 (10분 단위라 6번 중 1번)
-        if: github.event.schedule == null || (github.run_number % 6 == 0)
-        run: |
-          curl -fsSL --retry 2 --max-time 30 \
-               https://bidlivekorea.streamlit.app/ > /dev/null \
-            || echo "prod streamlit ping failed (legacy)"
-          curl -fsSL --retry 2 --max-time 30 \
-               https://bidlivekorea-test.streamlit.app/ > /dev/null \
-            || echo "test streamlit ping failed (legacy)"
+          URL="${CLOUDTYPE_URL%/}/bids"
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
+                      -A "GH-Actions-KeepAlive" "$URL" || echo "000")
+          echo "$(date -u +%FT%TZ) ping $URL → HTTP $code"
+          # 응답 분류:
+          #   200/304: 정상
+          #   404:    배포 실패 (sleep 와 무관) — warning
+          #   5xx:    서버 에러 — warning
+          #   000:    timeout / DNS 실패 — warning
+          # 어떤 응답이든 wakeup 신호는 전달했으니 step 자체는 성공으로 종료.
+          case "$code" in
+            200|304) ;;
+            404)     echo "::warning::404 응답 — Cloudtype 배포 자체가 깨졌을 수 있음" ;;
+            5*)      echo "::warning::5xx 응답 — 앱 런타임 에러 가능성" ;;
+            *)       echo "::warning::응답 코드 $code — 네트워크/timeout 의심" ;;
+          esac
+          exit 0
