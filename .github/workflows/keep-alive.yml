@@ -7,13 +7,16 @@ name: Keep Cloudtype Alive
 #   CLOUDTYPE_URL — Cloudtype 사이트 URL (예: https://port-next-bidlive-korea-web-xxx.cloudtype.app)
 #                   미설정 시 step warning + skip — sleep 보호 안 됨.
 #
-# GH Actions 무료 한도: 2000분/월 (Private repo).
-#   10분 cron × 0.5분 작업 × 144회/일 × 30일 = ~2160분 → 한도 살짝 초과.
-#   bid-collector 를 Public 으로 전환하면 Actions 무제한.
+# GH Actions cron 은 평균 5~10분 지연 발생 → 10분 cron 이 실제 15-20분 간격이 되어
+# Cloudtype Sandbox 의 15분 sleep 임계와 충돌. 5분으로 줄여 안전 마진 확보.
+#
+# 한도: Private repo = 2000분/월 → 5분 cron × 0.5분 × 288회/일 = ~4300분 → 초과 위험.
+# Public repo 로 전환하면 무제한 (코드만 있고 secret 은 Settings 라 안전).
+# 한도 초과 시 백업: UptimeRobot 등 외부 모니터링 (1-3분 간격, 무료 50 monitor).
 
 on:
   schedule:
-    - cron: '*/10 * * * *'   # 10분 간격
+    - cron: '*/5 * * * *'   # 5분 간격 — sleep 15분 임계 안전 보장
   workflow_dispatch: {}
 
 permissions:
