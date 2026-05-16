@@ -110,7 +110,8 @@ def _normalize(item: dict, source: str, bid_type: str) -> dict | None:
         "contract_method": item.get("cntrctMthdNm"),
         "estimated_price": price,
         "open_date": _pick(item, ("bidBeginDt", "nticeDt", "bidNtceDt")),
-        "close_date": item.get("bidClseDt"),
+        # 마감일 비어있으면 개찰일 (opengDt) 로 fallback (g2b 와 동일 패턴)
+        "close_date": _pick(item, ("bidClseDt", "opengDt")),
         "bid_type": bid_type,
         # 공고문 PDF 직접 다운로드 URL (공개, SSO 불필요)
         "detail_url": _pick_doc_url(item),

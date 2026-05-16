@@ -71,7 +71,9 @@ def _normalize(item: dict, source: str, bid_type: str) -> dict | None:
         "contract_method": item.get("cntrctCnclsMthdNm"),
         "estimated_price": _safe_int(item.get("presmptPrce") or item.get("asignBdgtAmt")),
         "open_date": item.get("bidNtceDt"),
-        "close_date": item.get("bidClseDt"),
+        # 마감일 비어있으면 개찰일 (opengDt) 로 fallback. g2b_api_etc 카테고리는
+        # bidClseDt 가 100% 비어있어서 opengDt 가 사실상 유일한 일정 정보.
+        "close_date": item.get("bidClseDt") or item.get("opengDt"),
         "bid_type": bid_type,
         "detail_url": item.get("bidNtceDtlUrl") or item.get("bidNtceUrl"),
     }
