@@ -3,7 +3,7 @@
 한 통에 3개 섹션:
   - 신규 공고 (오늘 open_date, 최대 3건 + 더보기)
   - 키워드 매칭 (구독자 preferences 조건, 최대 3건 + 더보기) — keyword 구독자만
-  - 마감 임박 (D-3 이내, 최대 3건 + 더보기)
+  - 마감 임박 (D-1 이내, 최대 3건 + 더보기)
 
 각 섹션은 구독자의 preferences.alerts 에 해당 종류가 있을 때만 포함.
 "더보기" 링크는 웹 대시보드의 해당 필터 화면으로 연결.
@@ -85,7 +85,7 @@ SQL_CLOSING = f"""
 SELECT {COLS} FROM bid_announcements
 WHERE close_date IS NOT NULL AND close_date <> ''
   AND SUBSTR(REPLACE(close_date,'/','-'), 1, 10) >= to_char((NOW() AT TIME ZONE 'Asia/Seoul')::date, 'YYYY-MM-DD')
-  AND SUBSTR(REPLACE(close_date,'/','-'), 1, 10) <= to_char((NOW() AT TIME ZONE 'Asia/Seoul')::date + 3, 'YYYY-MM-DD')
+  AND SUBSTR(REPLACE(close_date,'/','-'), 1, 10) <= to_char((NOW() AT TIME ZONE 'Asia/Seoul')::date + 1, 'YYYY-MM-DD')
 ORDER BY SUBSTR(REPLACE(close_date,'/','-'), 1, 10) ASC
 """
 
@@ -189,7 +189,7 @@ def build_digest(
         sections += _section("🎯", "키워드·조건 매칭", keyword_rows, len(keyword_rows), f"{SITE_URL}/bids")
         counts.append(f"매칭 {len(keyword_rows)}")
     if closing_rows is not None:
-        sections += _section("⏰", "마감 임박 (D-3 이내)", closing_rows, len(closing_rows), f"{SITE_URL}/bids?dday=3")
+        sections += _section("⏰", "마감 임박 (D-1 이내)", closing_rows, len(closing_rows), f"{SITE_URL}/bids?dday=1")
         counts.append(f"마감임박 {len(closing_rows)}")
 
     subject = f"[공공입찰] {today} 일일 리포트 — " + " / ".join(counts)
