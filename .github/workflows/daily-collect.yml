@@ -90,8 +90,10 @@ jobs:
         run: python scripts/cleanup_old_bids.py
         continue-on-error: true   # 정리 실패해도 워크플로우 전체 fail 시키지 않음
 
-      - name: 메일 알림 발송 (신규 + 키워드 매칭)
-        # 수집 직후 — 오늘 신규 공고 기준. 마감임박(closing)은 별도 09시 워크플로우.
+      - name: 일일 다이제스트 메일 발송 (신규+키워드+마감 통합, 하루 1통)
+        # 18시 수집(UTC 09:00) 또는 수동 트리거 시에만 발송.
+        # 07/12시 수집은 데이터만 갱신 (중복 메일 방지).
+        if: github.event.schedule == '0 9 * * *' || github.event_name == 'workflow_dispatch'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
@@ -102,7 +104,5 @@ jobs:
           # SMTP_PORT: ${{ secrets.SMTP_PORT }}
           # SMTP_USER: ${{ secrets.SMTP_USER }}
           # SMTP_PASS: ${{ secrets.SMTP_PASS }}
-        run: |
-          python -m scripts.send_alerts --kind new
-          python -m scripts.send_alerts --kind keyword
+        run: python -m scripts.send_alerts
         continue-on-error: true   # 발송 실패해도 수집 자체는 성공 처리
