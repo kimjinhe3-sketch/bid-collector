@@ -90,7 +90,19 @@ jobs:
         run: python scripts/cleanup_old_bids.py
         continue-on-error: true   # 정리 실패해도 워크플로우 전체 fail 시키지 않음
 
-      - name: Warm Streamlit apps (선택 — 마이그레이션 완료 시 제거)
+      - name: 메일 알림 발송 (신규 + 키워드 매칭)
+        # 수집 직후 — 오늘 신규 공고 기준. 마감임박(closing)은 별도 09시 워크플로우.
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          SITE_URL: ${{ secrets.CLOUDTYPE_URL }}
+          # SMTP 전환 시 아래 주석 해제 + RESEND_API_KEY 제거
+          # SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          # SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          # SMTP_USER: ${{ secrets.SMTP_USER }}
+          # SMTP_PASS: ${{ secrets.SMTP_PASS }}
         run: |
-          curl -fsSL --max-time 30 https://bidlivekorea.streamlit.app/      > /dev/null || true
-          curl -fsSL --max-time 30 https://bidlivekorea-test.streamlit.app/ > /dev/null || true
+          python -m scripts.send_alerts --kind new
+          python -m scripts.send_alerts --kind keyword
+        continue-on-error: true   # 발송 실패해도 수집 자체는 성공 처리
