@@ -1,6 +1,7 @@
-name: Daily Collect (18:00 KST)
+name: Collect (07/12/18 KST)
 
-# 매일 09:00 UTC = 18:00 KST 자동 수집.
+# 매일 3회 자동 수집 — 07/12/18 KST.
+# 신규 공고를 영업시간 내에 더 빠르게 반영.
 # DATABASE_URL (Supabase Postgres) 에 직접 적재 — git commit 불필요.
 #
 # Secrets 등록 필요 (GitHub repo Settings → Secrets and variables → Actions):
@@ -11,7 +12,9 @@ name: Daily Collect (18:00 KST)
 
 on:
   schedule:
-    - cron: '0 9 * * *'   # 매일 09:00 UTC (= 18:00 Asia/Seoul)
+    - cron: '0 22 * * *'  # 07:00 KST (UTC 22:00 전날) — 오전 업무 시작 전
+    - cron: '0 3 * * *'   # 12:00 KST (UTC 03:00)      — 점심 시점
+    - cron: '0 9 * * *'   # 18:00 KST (UTC 09:00)      — 퇴근 무렵 / 당일 마감 캡처
   workflow_dispatch: {}    # 수동 트리거 가능 (Actions 탭에서 'Run workflow')
 
 permissions:
