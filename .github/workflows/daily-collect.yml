@@ -13,6 +13,7 @@ name: Collect (07/12/18 KST)
 on:
   schedule:
     - cron: '0 22 * * *'  # 07:00 KST (UTC 22:00 전날) — 오전 업무 시작 전
+    - cron: '0 23 * * *'  # 08:00 KST (UTC 23:00 전날) — 다이제스트 메일 발송
     - cron: '0 3 * * *'   # 12:00 KST (UTC 03:00)      — 점심 시점
     - cron: '0 9 * * *'   # 18:00 KST (UTC 09:00)      — 퇴근 무렵 / 당일 마감 캡처
   workflow_dispatch: {}    # 수동 트리거 가능 (Actions 탭에서 'Run workflow')
@@ -91,9 +92,9 @@ jobs:
         continue-on-error: true   # 정리 실패해도 워크플로우 전체 fail 시키지 않음
 
       - name: 일일 다이제스트 메일 발송 (신규+키워드+마감 통합, 하루 1통)
-        # 18시 수집(UTC 09:00) 또는 수동 트리거 시에만 발송.
-        # 07/12시 수집은 데이터만 갱신 (중복 메일 방지).
-        if: github.event.schedule == '0 9 * * *' || github.event_name == 'workflow_dispatch'
+        # 08시(UTC 23:00) 또는 수동 트리거 시에만 발송.
+        # 07/12/18시 수집은 데이터만 갱신 (중복 메일 방지).
+        if: github.event.schedule == '0 23 * * *' || github.event_name == 'workflow_dispatch'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
