@@ -75,11 +75,10 @@ def _norm_date(s) -> str:
 
 COLS = "bid_no, title, org_name, region, estimated_price, close_date, open_date, bid_type, detail_url, source"
 
-# 신규 = 공고일(open_date) 이 어제~오늘 (08시 발송이라 당일만이면 거의 0건)
+# 신규 = 공고일(open_date) 이 당일(오늘) — 대시보드 TODAY 카드와 동일 기준
 SQL_NEW = f"""
 SELECT {COLS} FROM bid_announcements
-WHERE SUBSTR(open_date, 1, 10) >= to_char((NOW() AT TIME ZONE 'Asia/Seoul')::date - 1, 'YYYY-MM-DD')
-  AND SUBSTR(open_date, 1, 10) <= to_char((NOW() AT TIME ZONE 'Asia/Seoul')::date, 'YYYY-MM-DD')
+WHERE SUBSTR(open_date, 1, 10) = to_char((NOW() AT TIME ZONE 'Asia/Seoul')::date, 'YYYY-MM-DD')
 ORDER BY estimated_price DESC NULLS LAST
 """
 
