@@ -75,18 +75,31 @@ def _norm_date(s) -> str:
 
 COLS = "bid_no, title, org_name, region, estimated_price, close_date, open_date, bid_type, detail_url, source"
 
+# 신규 = 공고일(open_date) 이 어제~오늘 (08시 발송이라 당일만이면 거의 0건)
 SQL_NEW = f"""
 SELECT {COLS} FROM bid_announcements
-WHERE SUBSTR(open_date, 1, 10) = to_char((NOW() AT TIME ZONE 'Asia/Seoul')::date, 'YYYY-MM-DD')
+WHERE SUBSTR(open_date, 1, 10) >= to_char((NOW() AT TIME ZONE 'Asia/Seoul')::date - 1, 'YYYY-MM-DD')
+  AND SUBSTR(open_date, 1, 10) <= to_char((NOW() AT TIME ZONE 'Asia/Seoul')::date, 'YYYY-MM-DD')
 ORDER BY estimated_price DESC NULLS LAST
 """
 
+# 마감 임박 = D-1 이내 (오늘~내일 마감)
 SQL_CLOSING = f"""
 SELECT {COLS} FROM bid_announcements
 WHERE close_date IS NOT NULL AND close_date <> ''
   AND SUBSTR(REPLACE(close_date,'/','-'), 1, 10) >= to_char((NOW() AT TIME ZONE 'Asia/Seoul')::date, 'YYYY-MM-DD')
   AND SUBSTR(REPLACE(close_date,'/','-'), 1, 10) <= to_char((NOW() AT TIME ZONE 'Asia/Seoul')::date + 1, 'YYYY-MM-DD')
 ORDER BY SUBSTR(REPLACE(close_date,'/','-'), 1, 10) ASC
+"""
+
+# 키워드 매칭 모집단 = 진행중(마감 안 지난) 전체. 마감 임박순 정렬.
+SQL_ACTIVE = f"""
+SELECT {COLS} FROM bid_announcements
+WHERE close_date IS NULL OR close_date = ''
+   OR SUBSTR(REPLACE(close_date,'/','-'), 1, 10) >= to_char((NOW() AT TIME ZONE 'Asia/Seoul')::date, 'YYYY-MM-DD')
+ORDER BY
+  (close_date IS NULL OR close_date = '') ASC,
+  SUBSTR(REPLACE(close_date,'/','-'), 1, 10) ASC
 """
 
 
@@ -103,6 +116,21 @@ def fetch_subscribers(cur) -> list[dict]:
 
 
 # ─────────── 키워드 매칭 ───────────
+
+def _keyword_filter_url(prefs: dict) -> str:
+    """구독자 preferences → 웹 대시보드 필터 URL (진행중 + 키워드 + 지역 + 금액)."""
+    params = ["active=1"]
+    kws = prefs.get("keywords") or []
+    if kws:
+        params.append("inc=" + quote(",".join(kws)))
+    regions = prefs.get("regions") or []
+    if regions:
+        params.append("regions=" + quote(",".join(regions)))
+    amin = prefs.get("amountMinEok")
+    if amin:
+        params.append(f"amin={amin}")
+    return f"{SITE_URL}/bids?" + "&".join(params)
+
 
 def match_prefs(row: dict, prefs: dict) -> bool:
     kws = [k.lower() for k in (prefs.get("keywords") or [])]
@@ -177,6 +205,7 @@ def build_digest(
     new_rows: list[dict] | None,
     keyword_rows: list[dict] | None,
     closing_rows: list[dict] | None,
+    keyword_more_url: str = "",
 ) -> tuple[str, str]:
     """returns (subject, html). 섹션은 None 이면 미포함 (구독 안 함)."""
     sections = ""
@@ -186,7 +215,7 @@ def build_digest(
         sections += _section("📢", "신규 공고", new_rows, len(new_rows), f"{SITE_URL}/bids?tags=new")
         counts.append(f"신규 {len(new_rows)}")
     if keyword_rows is not None:
-        sections += _section("🎯", "키워드·조건 매칭", keyword_rows, len(keyword_rows), f"{SITE_URL}/bids")
+        sections += _section("🎯", "키워드 매칭 (진행중)", keyword_rows, len(keyword_rows), keyword_more_url or f"{SITE_URL}/bids")
         counts.append(f"매칭 {len(keyword_rows)}")
     if closing_rows is not None:
         sections += _section("⏰", "마감 임박 (D-1 이내)", closing_rows, len(closing_rows), f"{SITE_URL}/bids?dday=1")
@@ -208,7 +237,7 @@ def build_digest(
       <a href="{SITE_URL}/bids" style="display:inline-block;background:#FE2E36;color:#fff;padding:10px 28px;border-radius:6px;text-decoration:none;font-weight:700;font-size:13px;">대시보드 전체 보기</a>
     </div>
     <div style="padding:14px 20px;border-top:1px solid #eee;text-align:center;color:#aaa;font-size:11px;">
-      매일 18시 발송 · 공공입찰 수집 시스템<br>
+      매일 오전 8시 발송 · 공공입찰 수집 시스템<br>
       <a href="{unsub}" style="color:#aaa;">구독 해지</a>
     </div>
   </div>
@@ -226,8 +255,10 @@ def run(dry_run: bool = False) -> int:
         with conn.cursor() as cur:
             all_new = fetch(cur, SQL_NEW)
             all_closing = fetch(cur, SQL_CLOSING)
+            all_active = fetch(cur, SQL_ACTIVE)  # 키워드 매칭 모집단 (진행중 전체)
             subs = fetch_subscribers(cur)
-            print(f"[send_alerts] new={len(all_new)} closing={len(all_closing)} subscribers={len(subs)}")
+            print(f"[send_alerts] new={len(all_new)} closing={len(all_closing)} "
+                  f"active={len(all_active)} subscribers={len(subs)}")
 
             for s in subs:
                 prefs = s.get("preferences") or {}
@@ -236,8 +267,11 @@ def run(dry_run: bool = False) -> int:
                 new_rows = all_new if "new" in alerts else None
                 closing_rows = all_closing if "closing" in alerts else None
                 keyword_rows = None
+                keyword_more_url = ""
                 if "keyword" in alerts:
-                    keyword_rows = [r for r in all_new if match_prefs(r, prefs)]
+                    # 진행중 전체 중 키워드/지역/금액 매칭 (마감 임박순 — SQL_ACTIVE 정렬 유지)
+                    keyword_rows = [r for r in all_active if match_prefs(r, prefs)]
+                    keyword_more_url = _keyword_filter_url(prefs)
 
                 # 보낼 내용이 하나도 없으면 skip (전 섹션 0건/미구독)
                 has_content = any(
@@ -248,7 +282,8 @@ def run(dry_run: bool = False) -> int:
                     continue
 
                 subject, html = build_digest(
-                    today, s["unsubscribe_token"], new_rows, keyword_rows, closing_rows
+                    today, s["unsubscribe_token"], new_rows, keyword_rows, closing_rows,
+                    keyword_more_url=keyword_more_url,
                 )
 
                 if dry_run:
