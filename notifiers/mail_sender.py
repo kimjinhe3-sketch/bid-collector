@@ -31,17 +31,29 @@ DEFAULT_FROM = "공공입찰 수집 시스템 <onboarding@resend.dev>"
 
 
 def send_mail(to: str, subject: str, html: str) -> bool:
-    """단일 수신자에게 HTML 메일 발송. 성공 시 True."""
+    """단일 수신자에게 HTML 메일 발송. 성공 시 True.
+
+    우선순위: SMTP_HOST 있으면 SMTP, 없으면 Resend.
+    (SMTP 가 누구에게나 발송 가능 — Gmail/Naver/사내 메일. Resend 는 도메인 인증 전 본인 주소만.)
+    MAIL_PROVIDER 환경변수로 강제 지정 가능 ("smtp" | "resend").
+    """
     resend_key = os.environ.get("RESEND_API_KEY")
     smtp_host = os.environ.get("SMTP_HOST")
     mail_from = os.environ.get("MAIL_FROM") or DEFAULT_FROM
+    provider = (os.environ.get("MAIL_PROVIDER") or "").lower()
 
-    if resend_key:
+    if provider == "resend" and resend_key:
         return _send_resend(resend_key, mail_from, to, subject, html)
-    if smtp_host:
+    if provider == "smtp" and smtp_host:
         return _send_smtp(smtp_host, mail_from, to, subject, html)
 
-    logger.warning("[mail] no RESEND_API_KEY / SMTP_HOST — dry-run: to=%s subject=%s", to, subject)
+    # 자동 — SMTP 우선 (발송 범위 넓음), 없으면 Resend
+    if smtp_host:
+        return _send_smtp(smtp_host, mail_from, to, subject, html)
+    if resend_key:
+        return _send_resend(resend_key, mail_from, to, subject, html)
+
+    logger.warning("[mail] no SMTP_HOST / RESEND_API_KEY — dry-run: to=%s subject=%s", to, subject)
     return False
 
 

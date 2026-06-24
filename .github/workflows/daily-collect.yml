@@ -97,13 +97,14 @@ jobs:
         if: github.event.schedule == '0 23 * * *' || github.event_name == 'workflow_dispatch'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           MAIL_FROM: ${{ secrets.MAIL_FROM }}
           SITE_URL: ${{ secrets.CLOUDTYPE_URL }}
-          # SMTP 전환 시 아래 주석 해제 + RESEND_API_KEY 제거
-          # SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          # SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          # SMTP_USER: ${{ secrets.SMTP_USER }}
-          # SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          # SMTP (Gmail/Naver/사내) — SMTP_HOST 있으면 자동으로 SMTP 우선 사용
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          # Resend 폴백 (SMTP 없을 때만) — 미설정이면 무시됨
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: python -m scripts.send_alerts
         continue-on-error: true   # 발송 실패해도 수집 자체는 성공 처리
