@@ -290,6 +290,11 @@ def run(dry_run: bool = False) -> int:
                     sent += 1
                 elif send_mail(s["email"], subject, html):
                     sent += 1
+                    # 발송 성공 기록 (누가 언제 받았는지 추적용)
+                    cur.execute(
+                        "UPDATE bid_subscribers SET last_sent_at = NOW() WHERE email = %s",
+                        (s["email"],),
+                    )
 
         conn.commit()
         print(f"[send_alerts] {'(dry-run) ' if dry_run else ''}sent={sent}")
