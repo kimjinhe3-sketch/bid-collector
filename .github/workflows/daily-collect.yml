@@ -108,3 +108,19 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: python -m scripts.send_alerts
         continue-on-error: true   # 발송 실패해도 수집 자체는 성공 처리
+
+      - name: 관리자 운영 리포트 발송 (전일 방문/구독 현황 — 관리자 1명)
+        # 08시 다이제스트와 동일 트리거. 구독자 알림과 별개로 ADMIN_EMAIL 에게만.
+        if: github.event.schedule == '0 23 * * *' || github.event_name == 'workflow_dispatch'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          SITE_URL: ${{ secrets.CLOUDTYPE_URL }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: python -m scripts.send_admin_report
+        continue-on-error: true
