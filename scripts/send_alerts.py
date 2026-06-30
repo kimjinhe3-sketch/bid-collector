@@ -246,7 +246,7 @@ def build_digest(
 
 # ─────────── 발송 ───────────
 
-def run(dry_run: bool = False) -> int:
+def run(dry_run: bool = False, test_only: bool = False) -> int:
     today = datetime.now().strftime("%Y-%m-%d")
     conn = _db()
     sent = 0
@@ -256,6 +256,15 @@ def run(dry_run: bool = False) -> int:
             all_closing = fetch(cur, SQL_CLOSING)
             all_active = fetch(cur, SQL_ACTIVE)  # 키워드 매칭 모집단 (진행중 전체)
             subs = fetch_subscribers(cur)
+            # test_only: 실제 구독자 무시, ADMIN_EMAIL 1명에게만 (모든 알림 켠 가상 구독자)
+            if test_only:
+                admin = os.environ.get("ADMIN_EMAIL", "jihyeong.kim@kt.com")
+                subs = [{
+                    "email": admin,
+                    "unsubscribe_token": "test",
+                    "preferences": {"alerts": ["new", "closing", "keyword"]},
+                }]
+                print(f"[send_alerts] TEST MODE → {admin} 에게만")
             print(f"[send_alerts] new={len(all_new)} closing={len(all_closing)} "
                   f"active={len(all_active)} subscribers={len(subs)}")
 
@@ -306,10 +315,12 @@ def run(dry_run: bool = False) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true", help="발송 없이 대상만 출력")
+    ap.add_argument("--test-only", action="store_true",
+                    help="실제 구독자 무시, ADMIN_EMAIL 1명에게만 (수동 테스트용)")
     # 하위호환: --kind 받아도 무시 (이제 통합 다이제스트)
     ap.add_argument("--kind", help="(deprecated, 무시됨)")
     args = ap.parse_args()
-    return run(dry_run=args.dry_run)
+    return run(dry_run=args.dry_run, test_only=args.test_only)
 
 
 if __name__ == "__main__":

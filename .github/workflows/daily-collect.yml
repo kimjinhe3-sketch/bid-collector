@@ -16,7 +16,16 @@ on:
     - cron: '0 23 * * *'  # 08:00 KST (UTC 23:00 전날) — 다이제스트 메일 발송
     - cron: '0 3 * * *'   # 12:00 KST (UTC 03:00)      — 점심 시점
     - cron: '0 9 * * *'   # 18:00 KST (UTC 09:00)      — 퇴근 무렵 / 당일 마감 캡처
-  workflow_dispatch: {}    # 수동 트리거 가능 (Actions 탭에서 'Run workflow')
+  workflow_dispatch:        # 수동 트리거 — 발송 모드 선택
+    inputs:
+      send_mode:
+        description: "메일 발송 모드 (수동 실행 시)"
+        type: choice
+        default: "none"
+        options:
+          - none   # 수집만, 메일 발송 안 함 (기본 — 안전)
+          - test   # ADMIN_EMAIL 1명에게만 테스트 발송
+          - all    # 전체 구독자에게 실발송 (정규 08시와 동일)
 
 permissions:
   contents: read           # 더 이상 git push 안 함 (DB 가 직접 Supabase 로 가니까)
@@ -92,26 +101,39 @@ jobs:
         continue-on-error: true   # 정리 실패해도 워크플로우 전체 fail 시키지 않음
 
       - name: 일일 다이제스트 메일 발송 (신규+키워드+마감 통합, 하루 1통)
-        # 08시(UTC 23:00) 또는 수동 트리거 시에만 발송.
-        # 07/12/18시 수집은 데이터만 갱신 (중복 메일 방지).
-        if: github.event.schedule == '0 23 * * *' || github.event_name == 'workflow_dispatch'
+        # 발송 조건:
+        #   - 정규 08시 cron(UTC 23:00) → 전체 구독자 실발송
+        #   - 수동 + send_mode=all  → 전체 실발송
+        #   - 수동 + send_mode=test → ADMIN_EMAIL 1명에게만
+        #   - 수동 + send_mode=none(기본) → 발송 안 함 (수집만)
+        #   - 07/12/18시 cron → 발송 안 함 (데이터만 갱신)
+        if: >
+          github.event.schedule == '0 23 * * *' ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.send_mode != 'none')
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MAIL_FROM: ${{ secrets.MAIL_FROM }}
           SITE_URL: ${{ secrets.CLOUDTYPE_URL }}
-          # SMTP (Gmail/Naver/사내) — SMTP_HOST 있으면 자동으로 SMTP 우선 사용
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          # Resend 폴백 (SMTP 없을 때만) — 미설정이면 무시됨
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-        run: python -m scripts.send_alerts
+        run: |
+          if [ "${{ github.event.inputs.send_mode }}" = "test" ]; then
+            python -m scripts.send_alerts --test-only
+          else
+            python -m scripts.send_alerts
+          fi
         continue-on-error: true   # 발송 실패해도 수집 자체는 성공 처리
 
       - name: 관리자 운영 리포트 발송 (전일 방문/구독 현황 — 관리자 1명)
-        # 08시 다이제스트와 동일 트리거. 구독자 알림과 별개로 ADMIN_EMAIL 에게만.
-        if: github.event.schedule == '0 23 * * *' || github.event_name == 'workflow_dispatch'
+        # 관리자(ADMIN_EMAIL) 1명에게만. 정규 08시 또는 수동+send_mode(test/all) 시.
+        # send_mode=none(기본) 이면 순수 수집만 — 메일 일절 안 감.
+        if: >
+          github.event.schedule == '0 23 * * *' ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.send_mode != 'none')
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MAIL_FROM: ${{ secrets.MAIL_FROM }}
