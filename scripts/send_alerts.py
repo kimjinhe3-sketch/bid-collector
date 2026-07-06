@@ -247,7 +247,16 @@ def build_digest(
 # ─────────── 발송 ───────────
 
 def run(dry_run: bool = False, test_only: bool = False) -> int:
-    today = datetime.now().strftime("%Y-%m-%d")
+    from datetime import timedelta, timezone
+    # KST 기준 요일 — runner 는 UTC 라 +9h 보정
+    kst_now = datetime.now(timezone.utc) + timedelta(hours=9)
+    # 주말(토=5, 일=6) 은 발송 skip — 공공기관 공고 거의 없음.
+    # test_only(수동 테스트) 는 요일 무관 발송.
+    if not test_only and kst_now.weekday() >= 5:
+        print(f"[send_alerts] 주말({kst_now:%Y-%m-%d %a}) — 발송 skip")
+        return 0
+
+    today = kst_now.strftime("%Y-%m-%d")
     conn = _db()
     sent = 0
     try:
