@@ -30,7 +30,8 @@ from psycopg2.extras import RealDictCursor
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from notifiers.mail_sender import send_mail  # noqa: E402
 
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "jihyeong.kim@kt.com")
+# env var 가 존재하지만 빈 값이면 default arg 가 안 먹으므로 `or` 로 방어.
+ADMIN_EMAIL = (os.environ.get("ADMIN_EMAIL") or "").strip() or "jihyeong.kim@kt.com"
 SITE_URL = os.environ.get(
     "SITE_URL",
     "https://port-next-bidlive-korea-web-mozlrrj98331a064.sel3.cloudtype.app",
@@ -231,17 +232,22 @@ def run(dry_run: bool = False, force: bool = False) -> int:
             emails = cur.fetchall()
 
         subject, html = build_report(v, vprev, sub, emails)
-        print(f"[admin_report] visitors={v['visitors']} sessions={v['sessions']} "
-              f"active={sub['active_now']} new={sub['new_yesterday']} churn={sub['churn_yesterday']}")
+        # 발송 대상/설정 진단 로그 (secret 누락·오타 파악용)
+        has_smtp = bool(os.environ.get("SMTP_HOST"))
+        has_resend = bool(os.environ.get("RESEND_API_KEY"))
+        print(f"[admin_report] to={ADMIN_EMAIL} smtp={has_smtp} resend={has_resend} "
+              f"visitors={v['visitors']} sessions={v['sessions']} active={sub['active_now']}")
 
         if dry_run:
             print(f"  [dry-run] → {ADMIN_EMAIL}: {subject}")
             return 0
         if send_mail(ADMIN_EMAIL, subject, html):
-            print(f"[admin_report] sent → {ADMIN_EMAIL}")
-        else:
-            print("[admin_report] send failed", file=sys.stderr)
-        return 0
+            print(f"[admin_report] ✅ sent → {ADMIN_EMAIL}")
+            return 0
+        # 실패 시 step 을 빨강으로 (원인 파악 쉽게)
+        print(f"[admin_report] ❌ send FAILED → {ADMIN_EMAIL} "
+              f"(smtp={has_smtp} resend={has_resend})", file=sys.stderr)
+        return 1
     finally:
         conn.close()
 
