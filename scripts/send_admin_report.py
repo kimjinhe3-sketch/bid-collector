@@ -216,7 +216,8 @@ def build_report(v, vprev, sub, emails) -> tuple[str, str]:
     return subject, html
 
 
-def run(dry_run: bool = False) -> int:
+def run(dry_run: bool = False, force: bool = False) -> int:
+    # 관리자 리포트는 매일 발송 (주말 포함) — 운영 모니터링 연속성.
     conn = _db()
     try:
         with conn.cursor() as cur:
@@ -248,8 +249,9 @@ def run(dry_run: bool = False) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--force", action="store_true", help="주말에도 강제 발송 (수동 테스트)")
     args = ap.parse_args()
-    return run(dry_run=args.dry_run)
+    return run(dry_run=args.dry_run, force=args.force)
 
 
 if __name__ == "__main__":
