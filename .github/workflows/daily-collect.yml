@@ -129,21 +129,5 @@ jobs:
           fi
         continue-on-error: true   # 발송 실패해도 수집 자체는 성공 처리
 
-      - name: 관리자 운영 리포트 발송 (전일 방문/구독 현황 — 관리자 1명)
-        # 관리자(ADMIN_EMAIL) 1명에게만. 정규 08시 또는 수동+send_mode(test/all) 시.
-        # send_mode=none(기본) 이면 순수 수집만 — 메일 일절 안 감.
-        if: >
-          github.event.schedule == '0 23 * * *' ||
-          (github.event_name == 'workflow_dispatch' && github.event.inputs.send_mode != 'none')
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          MAIL_FROM: ${{ secrets.MAIL_FROM }}
-          SITE_URL: ${{ secrets.CLOUDTYPE_URL }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-        run: python -m scripts.send_admin_report
-        continue-on-error: true
+      # 관리자 운영 리포트는 별도 워크플로우(admin-report.yml)로 분리.
+      # (수집 step 실패에 영향받지 않고 항상 발송되도록)
