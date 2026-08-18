@@ -103,6 +103,51 @@ def _send_smtp(host: str, mail_from: str, to: str, subject: str, html: str) -> b
         return False
 
 
+def send_mail_images(to: str, subject: str, html: str, images: dict[str, bytes]) -> bool:
+    """CID 인라인 이미지 포함 HTML 메일 (multipart/related) — SMTP 전용.
+
+    html 안의 src="cid:<이름>" 이 images 의 키와 매칭된다.
+    SMTP_HOST 미설정이면 False (호출측이 텍스트 폴백 처리).
+    """
+    smtp_host = os.environ.get("SMTP_HOST")
+    if not smtp_host:
+        logger.warning("[mail] send_mail_images: SMTP_HOST 없음 — 폴백 필요")
+        return False
+
+    from email.mime.image import MIMEImage
+
+    mail_from = os.environ.get("MAIL_FROM") or DEFAULT_FROM
+    port = int(os.environ.get("SMTP_PORT") or 587)
+    user = os.environ.get("SMTP_USER")
+    pw = os.environ.get("SMTP_PASS")
+    use_tls = (os.environ.get("SMTP_TLS", "1") != "0")
+
+    root = MIMEMultipart("related")
+    root["From"] = mail_from
+    root["To"] = to
+    root["Subject"] = subject
+    alt = MIMEMultipart("alternative")
+    root.attach(alt)
+    alt.attach(MIMEText(html, "html", "utf-8"))
+    for cid, data in images.items():
+        img = MIMEImage(data, _subtype="png")
+        img.add_header("Content-ID", f"<{cid}>")
+        img.add_header("Content-Disposition", "inline", filename=f"{cid}.png")
+        root.attach(img)
+
+    try:
+        with smtplib.SMTP(smtp_host, port, timeout=60) as s:
+            if use_tls:
+                s.starttls()
+            if user and pw:
+                s.login(user, pw)
+            s.sendmail(_addr(mail_from), [to], root.as_string())
+        return True
+    except Exception:
+        logger.exception("[mail:smtp-img] send failed to=%s", to)
+        return False
+
+
 def _addr(from_field: str) -> str:
     """'name <addr@x>' → 'addr@x' 추출 (sendmail 의 envelope from 용)."""
     if "<" in from_field and ">" in from_field:

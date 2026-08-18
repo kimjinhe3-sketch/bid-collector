@@ -101,7 +101,20 @@ jobs:
         run: python scripts/cleanup_old_bids.py
         continue-on-error: true   # 정리 실패해도 워크플로우 전체 fail 시키지 않음
 
-      - name: 일일 다이제스트 메일 발송 (신규+키워드+마감 통합, 하루 1통)
+      - name: 메일 렌더 준비 (playwright + Pretendard — v2 이미지형 다이제스트용)
+        # 실패해도 발송은 진행 — send_alerts 가 텍스트 HTML 로 자동 폴백
+        if: >
+          github.event.schedule == '0 23 * * *' ||
+          (github.event_name == 'workflow_dispatch' && github.event.inputs.send_mode != 'none')
+        continue-on-error: true
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+          mkdir -p ~/.local/share/fonts
+          cp assets/fonts/*.ttf ~/.local/share/fonts/
+          fc-cache -f
+
+      - name: 일일 다이제스트 메일 발송 (v2 그룹 세션형 이미지 메일, 하루 1통)
         # 발송 조건:
         #   - 정규 08시 cron(UTC 23:00) → 전체 구독자 실발송
         #   - 수동 + send_mode=all  → 전체 실발송
