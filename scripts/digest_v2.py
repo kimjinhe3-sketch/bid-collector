@@ -42,17 +42,23 @@ EXCLUDE = ["교복", "급식", "의료기기", "의약품", "가구", "도시락
            "준설", "가로수", "차량", "보험", "셔틀", "경비", "방역", "청소", "버스", "임차", "감리",
            "배관망", "식당", "위탁", "운영", "대행", "재건축", "정비사업", "HVDC"]
 
-GROUPS = [  # (그룹명, 포함, 그룹 전용 제외) — 구체적 → 포괄 (한 공고는 첫 매칭 그룹에만)
-    ("데이터센터",    ["데이터센터", "DC", "전산센터", "전산실", "서버실"], []),
-    ("에너지/환경",   ["태양광", "생태공장", "탄소"], []),
-    ("장비납품",      ["태블릿", "단말", "항온항습", "UPS", "무정전"], []),
+GROUPS = [  # (그룹명, 포함, 제목 제외, 발주처 제외) — 구체적 → 포괄 (한 공고는 첫 매칭 그룹에만)
+    ("데이터센터",    ["데이터센터", "DC", "전산센터", "전산실", "서버실"], [], []),
+    ("에너지/환경",   ["태양광", "생태공장", "탄소"], ["터빈"], ["국제협력단"]),
+    ("장비납품",      ["태블릿", "단말", "항온항습", "UPS", "무정전"], [], []),
     ("통합망",        ["정보통신망", "통신망", "행정망", "통합망", "교육망", "스쿨넷", "IPT",
-                      "사업자 선정", "사업자선정"], ["데이터센터"]),
-    ("통신/네트워크", ["네트워크", "CCTV", "5G", "LTE", "특화망", "통신구"], []),
-    ("MEP공사",      ["전기공사", "소방시설", "소방공사", "기계설비", "통신공사", "154kV"], []),
-    ("그외",          ["건축", "신축", "인프라"], []),
+                      "사업자 선정", "사업자선정"], ["데이터센터"], []),
+    ("통신/네트워크", ["네트워크", "CCTV", "5G", "LTE", "특화망", "통신구"], [], []),
+    ("MEP공사",      ["전기공사", "소방시설", "소방공사", "기계설비", "통신공사", "154kV"], [], []),
+    ("그외",          ["건축", "신축", "인프라"], [], []),
 ]
-ORDER = [g for g, _, _ in GROUPS]
+
+# 메일 제목 헤드라인 제한: '그외' 그룹·해외 사업은 대표 사업명으로 뽑지 않음
+HEADLINE_SKIP_GROUPS = {"그외"}
+HEADLINE_SKIP_KW = ["해외", "국외", "모로코", "미국", "일본", "중국", "베트남", "인도네시아",
+                    "필리핀", "캄보디아", "라오스", "몽골", "우즈베키", "카자흐", "아프리카",
+                    "중남미", "유럽", "텍사스", "ODA", "KOICA"]
+ORDER = [g for g, _, _, _ in GROUPS]
 DISPLAY_ORDER = ["통합망", "통신/네트워크", "MEP공사", "데이터센터", "에너지/환경", "장비납품", "그외"]
 BAND = [g for g in DISPLAY_ORDER if g != "그외"]
 
@@ -154,13 +160,46 @@ def build_digest_data(today: date | None = None) -> dict:
         key = (r["source"], (r["title"] or "").strip(), r.get("org_name") or "",
                r.get("bid_type") or "", r.get("estimated_price") if r.get("estimated_price") is not None else -1)
         g2[key].append(r)
-    deduped = [_keep_latest(v) for v in g2.values()]
+    stage2 = [_keep_latest(v) for v in g2.values()]
+
+    # 3단계: 유사 제목 중복 — 같은 (소스·기관·마감) 에서 제목이 "단어 1개 추가/삭제" 차이면
+    # 같은 사업 (예: "수중데이터센터 실증모델 [시작품] AI 인프라"). 단어가 "바뀐" 경우는
+    # 별개 공고 (분리발주 전기/통신/소방, 다른 학교·지구 등) — 병합 금지.
+    from collections import Counter
+
+    def _digits(t: str) -> list[str]:
+        return re.findall(r"\d+", t)
+
+    def _tokens(t: str) -> Counter:
+        return Counter(re.sub(r"[\[\]()【】,·]", " ", t).split())
+
+    def _near_dup(a: str, b: str) -> bool:
+        if _digits(a) != _digits(b):
+            return False
+        ta, tb = _tokens(a), _tokens(b)
+        diff = sum(((ta - tb) + (tb - ta)).values())
+        return diff <= 1  # 0=공백차이만, 1=단어 하나 추가/삭제
+
+    g3 = defaultdict(list)
+    for r in stage2:
+        g3[(r["source"], r.get("org_name") or "", r["close_norm"])].append(r)
+    deduped = []
+    for group in g3.values():
+        clusters: list[list[dict]] = []
+        for r in sorted(group, key=lambda x: x["title"]):
+            for c in clusters:
+                if _near_dup(r["title"], c[0]["title"]):
+                    c.append(r)
+                    break
+            else:
+                clusters.append([r])
+        deduped.extend(_keep_latest(c) for c in clusters)
 
     def dd_of(r):
         return (date.fromisoformat(r["close_norm"]) - today).days
 
     counts, result, assigned, matched_all = {}, {}, set(), []
-    for gname, kws, g_exc in GROUPS:
+    for gname, kws, g_exc, g_org_exc in GROUPS:
         pool = []
         for r in deduped:
             if r["id"] in assigned:
@@ -172,12 +211,14 @@ def build_digest_data(today: date | None = None) -> dict:
                 continue
             if g_exc and _matches(title, g_exc):
                 continue
+            if g_org_exc and _matches(r.get("org_name") or "", g_org_exc):
+                continue
             if (r.get("estimated_price") or 0) < MIN_PRICE:
                 continue
             pool.append(r)
         for r in pool:
             assigned.add(r["id"])
-        matched_all.extend(pool)
+        matched_all.extend((gname, r) for r in pool)
         counts[gname] = len(pool)
 
         by_price = sorted(pool, key=lambda x: x.get("estimated_price") or 0, reverse=True)
@@ -203,30 +244,47 @@ def build_digest_data(today: date | None = None) -> dict:
             "url": r.get("detail_url") or "",
         } for r, tag in picks]
 
-    news = sorted([r for r in matched_all if norm_date(r.get("open_date")) == today_s],
-                  key=lambda x: x.get("estimated_price") or 0, reverse=True)
-    closings = sorted([r for r in matched_all if dd_of(r) <= 1],
-                      key=lambda x: x.get("estimated_price") or 0, reverse=True)
+    # matched_all = [(그룹명, row)] — 제목 헤드라인은 '그외'·해외 사업을 피해서 뽑는다
+    news_all = sorted([(g, r) for g, r in matched_all if norm_date(r.get("open_date")) == today_s],
+                      key=lambda x: x[1].get("estimated_price") or 0, reverse=True)
+    closings_all = sorted([(g, r) for g, r in matched_all if dd_of(r) <= 1],
+                          key=lambda x: x[1].get("estimated_price") or 0, reverse=True)
+
+    def headline_ok(gname, r, strict):
+        if _matches(r["title"] or "", HEADLINE_SKIP_KW):
+            return False
+        return not (strict and gname in HEADLINE_SKIP_GROUPS)
+
+    def pick_top(cands):
+        # 1순위: 그외·해외 제외 / 2순위: 해외만 제외 / 3순위: 아무거나
+        for strict in (True, False):
+            for g, r in cands:
+                if headline_ok(g, r, strict):
+                    return r
+        return cands[0][1] if cands else None
 
     def brief(r):
         return {"title": r["title"], "price_eok": round((r.get("estimated_price") or 0) / EOK, 1)}
+
+    news_top = pick_top(news_all)
+    closings_top = pick_top(closings_all)
 
     return {
         "today": today_s,
         "counts": counts,
         "sections": result,
         "meta": {
-            "new_total": len(news), "closing_total": len(closings),
-            "new_top": brief(news[0]) if news else None,
-            "closing_top": brief(closings[0]) if closings else None,
+            "new_total": len(news_all), "closing_total": len(closings_all),
+            "new_top": brief(news_top) if news_top else None,
+            "closing_top": brief(closings_top) if closings_top else None,
         },
     }
 
 
 # ── 링크 ──────────────────────────────────────────────────
 def group_link(g: str) -> str:
-    kws = next((k for n, k, _ in GROUPS if n == g), [])
-    exc = next((e for n, _, e in GROUPS if n == g), [])
+    kws = next((k for n, k, _, _ in GROUPS if n == g), [])
+    exc = next((e for n, _, e, _ in GROUPS if n == g), [])
     url = f"{SITE_BIDS}?active=1&amin=10&inc=" + quote(",".join(kws))
     if exc:
         url += "&exc=" + quote(",".join(exc))
@@ -236,7 +294,7 @@ def group_link(g: str) -> str:
 def all_link() -> str:
     """KPI 밴드: 전 그룹 키워드 통합 조회 (그룹 제외 미적용)."""
     seen, kws = set(), []
-    for _, ks, _ in GROUPS:
+    for _, ks, _, _ in GROUPS:
         for k in ks:
             if k not in seen:
                 seen.add(k)
