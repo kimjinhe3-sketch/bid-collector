@@ -30,6 +30,7 @@ SITE_URL = (os.environ.get("SITE_URL") or os.environ.get("CLOUDTYPE_URL")
 SITE_BIDS = SITE_URL + "/bids"
 
 FONT = "Pretendard,'Malgun Gothic','Apple SD Gothic Neo',sans-serif"
+IMG_W = 624                   # 블록 이미지 폭 = 콘텐츠 600 + 좌우 여백 12×2 (다크모드 대비 여백 굽기)
 EOK = 100_000_000
 MIN_PRICE = 10 * EOK          # 리포트 대상: 10억 이상
 TITLE_MAX = 28                # 사업명 말줄임
@@ -382,7 +383,12 @@ def subject_line(data: dict) -> str:
 
 # ── 이미지 렌더 (playwright) ───────────────────────────────
 def render_blocks(blocks: list[dict]) -> dict[str, bytes] | None:
-    """블록별 PNG 렌더. 실패 시 None (호출측이 텍스트 폴백)."""
+    """블록별 PNG 렌더. 실패 시 None (호출측이 텍스트 폴백).
+
+    블록 사이 간격·좌우 여백을 이미지 안에 구워 넣는다 — 메일에서 이미지를 틈 없이
+    쌓으면 전체가 연속된 밝은 지면이 되어 다크모드가 사이를 검게 칠할 수 없다.
+    (첫 블록은 상단 10px, 마지막 블록은 하단 18px, 나머지는 하단 10px 여백 포함)
+    """
     import tempfile
     try:
         from playwright.sync_api import sync_playwright
@@ -391,16 +397,19 @@ def render_blocks(blocks: list[dict]) -> dict[str, bytes] | None:
 
     wrap = ('<!DOCTYPE html><html><head><meta charset="utf-8"><style>'
             'body{{margin:0;background:#f3f7fc;}}'
-            '#cap{{width:600px;padding-bottom:3px;}}'
+            '#cap{{width:{w}px;box-sizing:border-box;background:#f3f7fc;'
+            'padding:{pt}px 12px {pb}px;}}'
             '</style></head><body><div id="cap">{inner}</div></body></html>')
     try:
         images: dict[str, bytes] = {}
         with tempfile.TemporaryDirectory() as td, sync_playwright() as p:
             browser = p.chromium.launch()
-            page = browser.new_page(viewport={"width": 640, "height": 400}, device_scale_factor=2)
-            for b in blocks:
+            page = browser.new_page(viewport={"width": 680, "height": 400}, device_scale_factor=2)
+            for i, b in enumerate(blocks):
+                pt = 10 if i == 0 else 0
+                pb = 18 if i == len(blocks) - 1 else 10
                 f = Path(td) / (b["name"] + ".html")
-                f.write_text(wrap.format(inner=b["html"]), encoding="utf-8")
+                f.write_text(wrap.format(inner=b["html"], w=IMG_W, pt=pt, pb=pb), encoding="utf-8")
                 page.goto(f.as_uri())
                 page.wait_for_timeout(120)
                 images[b["name"]] = page.locator("#cap").screenshot()
@@ -422,16 +431,17 @@ def _footer(unsubscribe_token: str) -> str:
 
 
 def compose_image_mail(blocks: list[dict], unsubscribe_token: str) -> str:
+    # 간격 없이(0px) 쌓기 — 여백은 이미지 안에 구워져 있음 (다크모드가 사이를 못 칠함)
     rows = "".join(
-        f'<tr><td style="padding:0 0 10px;"><a href="{b["link"]}" target="_blank" style="text-decoration:none;">'
-        f'<img src="cid:{b["name"]}" width="600" alt="공공입찰 일일 리포트" '
-        f'style="display:block;border:0;width:600px;max-width:100%;"></a></td></tr>\n'
+        f'<tr><td style="padding:0;line-height:0;"><a href="{b["link"]}" target="_blank" style="text-decoration:none;">'
+        f'<img src="cid:{b["name"]}" width="{IMG_W}" alt="공공입찰 일일 리포트" '
+        f'style="display:block;border:0;width:{IMG_W}px;max-width:100%;"></a></td></tr>\n'
         for b in blocks)
     return (f'<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"></head>'
             f'<body style="margin:0;padding:0;" bgcolor="#f3f7fc">'
             f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#f3f7fc" style="border-collapse:collapse;">'
-            f'<tr><td align="center" style="padding:10px 12px 24px;">'
-            f'<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;border-collapse:collapse;">'
+            f'<tr><td align="center" style="padding:0 0 20px;">'
+            f'<table role="presentation" width="{IMG_W}" cellpadding="0" cellspacing="0" style="width:{IMG_W}px;max-width:100%;border-collapse:collapse;">'
             f'{rows}{_footer(unsubscribe_token)}'
             f'</table></td></tr></table></body></html>')
 
