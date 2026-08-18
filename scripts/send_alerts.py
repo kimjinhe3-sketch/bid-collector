@@ -105,7 +105,8 @@ def run(dry_run: bool = False, test_only: bool = False) -> int:
         return 0
 
     if test_only:
-        admin = os.environ.get("ADMIN_EMAIL", "jihyeong.kim@kt.com")
+        # ADMIN_EMAIL 시크릿이 빈 문자열인 경우 방어 (or — 과거 admin-report 장애와 동일 원인)
+        admin = os.environ.get("ADMIN_EMAIL") or "jihyeong.kim@kt.com"
         subs = [{"email": admin, "unsubscribe_token": "test"}]
         print(f"[send_alerts] TEST MODE → {admin} 에게만")
     else:
