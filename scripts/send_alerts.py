@@ -86,17 +86,20 @@ def run(dry_run: bool = False, test_only: bool = False) -> int:
     print(f"[send_alerts] subject: {subject}")
     print(f"[send_alerts] counts: {data['counts']}")
 
-    rendered = digest_v2.render_blocks(blocks)
-    images, footer_segs = rendered if rendered else (None, None)
-    mode = "image" if images else "text-fallback"
+    digest_mode = os.environ.get("DIGEST_MODE", "text")  # 사내 아웃룩 이미지 차단 → 텍스트 기본
+    images, footer_segs = None, None
+    if digest_mode == "image":
+        rendered = digest_v2.render_blocks(blocks)
+        images, footer_segs = rendered if rendered else (None, None)
+    mode = "image" if images else "text"
     print(f"[send_alerts] render: {mode}"
-          + (f" ({sum(len(v) for v in images.values()) // 1024}KB, {len(images)}블록)" if images else ""))
+          + (f" ({sum(len(v) for v in images.values()) // 1024}KB, {len(images)}블록)" if images else " (VML 하이브리드)"))
 
     if dry_run:
         out = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "digest_preview")
         os.makedirs(out, exist_ok=True)
         html = (digest_v2.compose_image_mail(blocks, "preview-token", footer_segs) if images
-                else digest_v2.compose_text_mail(blocks, "preview-token"))
+                else digest_v2.compose_text_mail(data, "preview-token"))
         open(os.path.join(out, "preview.html"), "w", encoding="utf-8").write(html)
         if images:
             for cid, b in images.items():
@@ -121,9 +124,9 @@ def run(dry_run: bool = False, test_only: bool = False) -> int:
             html = digest_v2.compose_image_mail(blocks, token, footer_segs)
             ok = send_mail_images(s["email"], subject, html, images)
             if not ok:  # 이미지 발송 불가(SMTP 미설정 등) → 텍스트 폴백
-                ok = send_mail(s["email"], subject, digest_v2.compose_text_mail(blocks, token))
+                ok = send_mail(s["email"], subject, digest_v2.compose_text_mail(data, token))
         else:
-            ok = send_mail(s["email"], subject, digest_v2.compose_text_mail(blocks, token))
+            ok = send_mail(s["email"], subject, digest_v2.compose_text_mail(data, token))
         if ok:
             sent += 1
             sent_emails.append(s["email"])

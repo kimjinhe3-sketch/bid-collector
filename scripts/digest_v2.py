@@ -268,6 +268,30 @@ TAG_PILL = {
 }
 
 
+def _rounded(inner: str, *, bg: str, border: str | None = None, radius: int = 14,
+             pad: str = "0", arc: str = "6%", inset: str = "0,0,0,0",
+             width: int = 600) -> str:
+    """라운드 컨테이너 하이브리드 — 아웃룩(워드 엔진)은 VML roundrect 로 둥근 모서리를
+    그리고, 그 외 클라이언트는 CSS border-radius 를 쓴다. (텍스트 메일용)"""
+    css = f"background:{bg};border-radius:{radius}px;padding:{pad};"
+    if border:
+        css += f"border:1px solid {border};"
+    stroke = f'strokecolor="{border}" strokeweight="1px"' if border else 'stroked="f"'
+    return (
+        f'<!--[if mso]>'
+        f'<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" arcsize="{arc}" '
+        f'fillcolor="{bg}" {stroke} style="width:{width}px;">'
+        f'<v:textbox inset="{inset}" style="mso-fit-shape-to-text:true">'
+        f'<![endif]-->'
+        f'<!--[if !mso]><!-- -->'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;">'
+        f'<tr><td style="{css}">'
+        f'<!--<![endif]-->'
+        f'{inner}'
+        f'<!--[if !mso]><!-- --></td></tr></table><!--<![endif]-->'
+        f'<!--[if mso]></v:textbox></v:roundrect><![endif]-->')
+
+
 def _row_html(r: dict, last: bool) -> str:
     border = "" if last else "border-bottom:1px solid #e6ecf5;"
     title_full = html_mod.escape(r["title"])
@@ -287,48 +311,64 @@ def _row_html(r: dict, last: bool) -> str:
             f'<span style="font-size:12px;">{_dday_inline(r["dday"])}</span></td></tr>')
 
 
-def _section_card(g: str, data: dict) -> str:
+def _section_card(g: str, data: dict, hybrid: bool = False) -> str:
     rows = data["sections"][g]
     n = data["counts"][g]
     body = "".join(_row_html(r, i == len(rows) - 1) for i, r in enumerate(rows))
     if not rows:
         body = (f'<tr><td style="padding:10px 0;font-family:{FONT};font-size:13px;color:#8592a6;">'
                 f'오늘 기준 10억 이상 공고가 없습니다</td></tr>')
+    header_band = (
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;margin-bottom:2px;">'
+        f'<tr><td style="background:#e8f1fc;border-left:4px solid #2a78d6;border-radius:7px;padding:6px 12px;">'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>'
+        f'<td style="font-family:{FONT};font-size:16px;font-weight:800;color:#1c5cab;">{html_mod.escape(g)}</td>'
+        f'<td align="right" style="font-family:{FONT};font-size:12px;font-weight:700;white-space:nowrap;">'
+        f'<a href="{group_link(g)}" style="color:#2a78d6;text-decoration:none;">{n}건 전체 &#8594;</a></td>'
+        f'</tr></table></td></tr></table>')
+    rows_table = (
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
+        f'<tr><td style="padding:0 12px;">'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">{body}</table>'
+        f'</td></tr></table>')
+    if hybrid:
+        return _rounded(header_band + rows_table, bg="#ffffff", border="#e3eaf4",
+                        radius=14, pad="10px 16px 6px", arc="5%", inset="16px,10px,16px,6px")
     return (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;">'
             f'<tr><td style="background:#ffffff;border:1px solid #e3eaf4;border-radius:14px;'
             f'padding:10px 16px 6px;box-shadow:0 1px 2px rgba(15,31,56,.05);">'
-            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;margin-bottom:2px;">'
-            f'<tr><td style="background:#e8f1fc;border-left:4px solid #2a78d6;border-radius:7px;padding:6px 12px;">'
-            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>'
-            f'<td style="font-family:{FONT};font-size:16px;font-weight:800;color:#1c5cab;">{html_mod.escape(g)}</td>'
-            f'<td align="right" style="font-family:{FONT};font-size:12px;font-weight:700;white-space:nowrap;">'
-            f'<a href="{group_link(g)}" style="color:#2a78d6;text-decoration:none;">{n}건 전체 &#8594;</a></td>'
-            f'</tr></table></td></tr></table>'
-            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
-            f'<tr><td style="padding:0 12px;">'
-            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">{body}</table>'
-            f'</td></tr></table>'
+            f'{header_band}{rows_table}'
             f'</td></tr></table>')
 
 
-def _header_card(data: dict) -> str:
-    ci_b64 = base64.b64encode(CI_PNG.read_bytes()).decode()
+def _header_card(data: dict, hybrid: bool = False) -> str:
     total = sum(data["counts"].values())
     d = date.fromisoformat(data["today"])
     wd = "월화수목금토일"[d.weekday()]
+    if hybrid:
+        # 텍스트 메일: 이미지(로고) 사용 불가 — 워드마크를 텍스트로 대체
+        logo = (f'<div style="font-family:{FONT};font-size:13px;font-weight:700;color:#ffffff;'
+                f'letter-spacing:0.02em;margin-bottom:6px;">kt engineering</div>')
+    else:
+        ci_b64 = base64.b64encode(CI_PNG.read_bytes()).decode()
+        logo = (f'<img src="data:image/png;base64,{ci_b64}" height="15" alt="kt engineering" '
+                f'style="display:block;border:0;height:15px;width:auto;margin-bottom:7px;">')
+    inner = (f'{logo}'
+             f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>'
+             f'<td style="font-family:{FONT};font-size:19px;font-weight:700;color:#ffffff;">공공입찰 일일 리포트</td>'
+             f'<td align="right" style="font-family:{FONT};font-size:12px;font-weight:500;color:#ffffff;white-space:nowrap;vertical-align:bottom;">'
+             f'{data["today"]} {wd} · 10억&#8593; {total}건</td>'
+             f'</tr></table>')
+    if hybrid:
+        return _rounded(inner, bg="#2a78d6", radius=14, pad="12px 18px 13px",
+                        arc="18%", inset="18px,12px,18px,13px")
     return (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;">'
             f'<tr><td style="background:#2a78d6;background-image:linear-gradient(105deg,#1c5cab 0%,#2a78d6 58%,#3f8ce4 100%);'
             f'border-radius:14px;padding:12px 18px 13px;">'
-            f'<img src="data:image/png;base64,{ci_b64}" height="15" alt="kt engineering" '
-            f'style="display:block;border:0;height:15px;width:auto;margin-bottom:7px;">'
-            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>'
-            f'<td style="font-family:{FONT};font-size:19px;font-weight:700;color:#ffffff;">공공입찰 일일 리포트</td>'
-            f'<td align="right" style="font-family:{FONT};font-size:12px;font-weight:500;color:#ffffff;white-space:nowrap;vertical-align:bottom;">'
-            f'{data["today"]} {wd} · 10억&#8593; {total}건</td>'
-            f'</tr></table></td></tr></table>')
+            f'{inner}</td></tr></table>')
 
 
-def _band_card(data: dict) -> str:
+def _band_card(data: dict, hybrid: bool = False) -> str:
     cells = ""
     for i, g in enumerate(BAND):
         sep = "border-left:1px solid #e6ecf5;" if i else ""
@@ -336,14 +376,37 @@ def _band_card(data: dict) -> str:
                   f'<div style="font-family:{FONT};font-size:12px;font-weight:600;color:#8592a6;white-space:nowrap;">{html_mod.escape(g.replace("/", "·"))}</div>'
                   f'<div style="font-family:{FONT};font-size:17px;font-weight:700;color:#0f1f38;line-height:1.35;">{data["counts"][g]}</div>'
                   f'</td>')
+    inner = (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+             f'style="border-collapse:collapse;"><tr>{cells}</tr></table>')
+    if hybrid:
+        return _rounded(inner, bg="#ffffff", border="#e3eaf4", radius=14,
+                        pad="9px 6px", arc="22%", inset="6px,9px,6px,9px")
     return (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;">'
             f'<tr><td style="background:#ffffff;border:1px solid #e3eaf4;border-radius:14px;padding:9px 6px;'
             f'box-shadow:0 1px 2px rgba(15,31,56,.05);">'
-            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>{cells}</tr></table>'
+            f'{inner}</td></tr></table>')
+
+
+def _cta_card(hybrid: bool = False) -> str:
+    if hybrid:
+        # 아웃룩: VML 라운드 버튼 (href 직접 지원) / 그 외: CSS 버튼
+        return (
+            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
+            f'<tr><td align="center" style="padding:4px 0 6px;">'
+            f'<!--[if mso]>'
+            f'<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="{SITE_BIDS}" '
+            f'arcsize="28%" fillcolor="#2a78d6" stroked="f" '
+            f'style="height:38px;width:200px;v-text-anchor:middle;">'
+            f'<center style="color:#ffffff;font-family:{FONT};font-size:13px;font-weight:700;">대시보드 전체 보기</center>'
+            f'</v:roundrect>'
+            f'<![endif]-->'
+            f'<!--[if !mso]><!-- -->'
+            f'<a href="{SITE_BIDS}" style="display:inline-block;background:#2a78d6;'
+            f'background-image:linear-gradient(105deg,#1c5cab 0%,#2a78d6 58%,#3f8ce4 100%);color:#ffffff;'
+            f'font-family:{FONT};font-size:13px;font-weight:700;text-decoration:none;padding:10px 34px;border-radius:10px;">'
+            f'대시보드 전체 보기</a>'
+            f'<!--<![endif]-->'
             f'</td></tr></table>')
-
-
-def _cta_card() -> str:
     return (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
             f'<tr><td align="center" style="padding:4px 0 6px;">'
             f'<a href="{SITE_BIDS}" style="display:inline-block;background:#2a78d6;'
@@ -499,10 +562,24 @@ def compose_image_mail(blocks: list[dict], unsubscribe_token: str,
             f'</table></td></tr></table></body></html>')
 
 
-def compose_text_mail(blocks: list[dict], unsubscribe_token: str) -> str:
-    """렌더 실패 시 폴백 — 블록 HTML 을 그대로 조립 (아웃룩에서 단색·직각으로 보일 수 있음)."""
-    rows = "".join(f'<tr><td style="padding:0 0 10px;">{b["html"]}</td></tr>\n' for b in blocks)
-    return (f'<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"></head>'
+def compose_text_mail(data: dict, unsubscribe_token: str) -> str:
+    """텍스트(HTML) 메일 — 사내 아웃룩용 기본 모드.
+
+    이미지 차단 환경에서도 온전히 보이도록 이미지 0장. 둥근 모서리는 VML 하이브리드
+    (_rounded) 로 아웃룩에서도 그려진다. 폰트는 Pretendard 우선(설치자) + 맑은고딕.
+    """
+    cards = [_header_card(data, hybrid=True), _band_card(data, hybrid=True)]
+    cards += [_section_card(g, data, hybrid=True) for g in DISPLAY_ORDER]
+    cards.append(_cta_card(hybrid=True))
+    rows = "".join(f'<tr><td style="padding:0 0 10px;">{c}</td></tr>\n' for c in cards)
+    return (f'<!DOCTYPE html>'
+            f'<html lang="ko" xmlns:v="urn:schemas-microsoft-com:vml" '
+            f'xmlns:o="urn:schemas-microsoft-com:office:office">'
+            f'<head><meta charset="utf-8">'
+            f'<!--[if mso]><xml><o:OfficeDocumentSettings>'
+            f'<o:PixelsPerInch>96</o:PixelsPerInch>'
+            f'</o:OfficeDocumentSettings></xml><![endif]-->'
+            f'</head>'
             f'<body style="margin:0;padding:0;" bgcolor="#f3f7fc">'
             f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#f3f7fc" style="border-collapse:collapse;">'
             f'<tr><td align="center" style="padding:10px 12px 24px;">'
