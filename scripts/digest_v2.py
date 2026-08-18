@@ -466,9 +466,7 @@ def render_blocks(blocks: list[dict]) -> dict[str, bytes] | None:
     footer_html = (
         f'<div style="font-family:{FONT};font-size:12px;color:#8592a6;line-height:1.7;'
         f'text-align:center;padding-top:2px;">'
-        f'공공입찰 수집 시스템 · 평일 오전 8시 발송 · '
-        f'<span id="lnk-dash" style="color:#8592a6;">대시보드</span> · '
-        f'<span id="lnk-unsub" style="color:#8592a6;">구독 해지</span></div>')
+        f'공공입찰 수집 시스템 · 평일 오전 8시 발송 · 대시보드 바로가기 &#8594;</div>')
 
     try:
         images: dict[str, bytes] = {}
@@ -485,30 +483,13 @@ def render_blocks(blocks: list[dict]) -> dict[str, bytes] | None:
                 page.wait_for_timeout(120)
                 images[b["name"]] = page.locator("#cap").screenshot()
 
-            # ── 푸터: 한 장 렌더 후 5조각 분할 — 대시보드/구독해지 조각만 수신자별 링크 ──
+            # ── 푸터: 통짜 1장 (조각 분할은 아웃룩 DPI 반올림 균열 유발 → 폐기) ──
             f = Path(td) / "footer.html"
-            f.write_text(wrap.format(inner=footer_html, w=IMG_W, pt=0, pb=24), encoding="utf-8")
+            f.write_text(wrap.format(inner=footer_html, w=IMG_W, pt=0, pb=16), encoding="utf-8")
             page.goto(f.as_uri())
             page.wait_for_timeout(120)
-            cap = page.locator("#cap").bounding_box()
-            d = page.locator("#lnk-dash").bounding_box()
-            u = page.locator("#lnk-unsub").bounding_box()
-            # 경계(캡처 기준 CSS px) — 링크 단어를 온전히 포함하도록 바깥쪽 반올림
-            import math
-            xs = [0,
-                  math.floor(d["x"] - cap["x"]), math.ceil(d["x"] - cap["x"] + d["width"]),
-                  math.floor(u["x"] - cap["x"]), math.ceil(u["x"] - cap["x"] + u["width"]),
-                  IMG_W]
-            kinds = [None, "dash", None, "unsub", None]
-            for i in range(5):
-                w = xs[i + 1] - xs[i]
-                if w <= 0:
-                    continue
-                png = page.screenshot(clip={"x": cap["x"] + xs[i], "y": cap["y"],
-                                            "width": w, "height": cap["height"]})
-                cid = f"fz{i}"
-                images[cid] = png
-                footer_segs.append({"cid": cid, "w": w, "kind": kinds[i]})
+            images["b99_footer"] = page.locator("#cap").screenshot()
+            footer_segs.append({"cid": "b99_footer", "w": IMG_W, "kind": "dash"})
             browser.close()
         return images, footer_segs
     except Exception as e:
@@ -530,26 +511,24 @@ def compose_image_mail(blocks: list[dict], unsubscribe_token: str,
                        footer_segs: list[dict] | None = None) -> str:
     # 간격 없이(0px) 쌓기 — 여백·배경은 이미지 안에 구워져 있음 (다크모드가 사이를 못 칠함)
     rows = "".join(
-        f'<tr><td style="padding:0;line-height:0;"><a href="{b["link"]}" target="_blank" style="text-decoration:none;">'
+        f'<tr><td style="padding:0;"><a href="{b["link"]}" target="_blank" style="text-decoration:none;">'
         f'<img src="cid:{b["name"]}" width="{IMG_W}" alt="공공입찰 일일 리포트" '
         f'style="display:block;border:0;width:{IMG_W}px;max-width:100%;"></a></td></tr>\n'
         for b in blocks)
 
+    unsub = f"{SITE_URL}/unsubscribe?token={quote(unsubscribe_token)}"
     if footer_segs:
-        # 푸터도 밝은 지면 이미지 — 대시보드/구독해지 조각만 링크 (해지 URL 은 수신자별)
-        unsub = f"{SITE_URL}/unsubscribe?token={quote(unsubscribe_token)}"
-        cells = ""
+        rows_f = ""
         for seg in footer_segs:
-            img = (f'<img src="cid:{seg["cid"]}" width="{seg["w"]}" alt="" '
-                   f'style="display:block;border:0;width:{seg["w"]}px;">')
-            if seg["kind"] == "dash":
-                img = f'<a href="{SITE_BIDS}" target="_blank" style="text-decoration:none;">{img}</a>'
-            elif seg["kind"] == "unsub":
-                img = f'<a href="{unsub}" target="_blank" style="text-decoration:none;">{img}</a>'
-            cells += f'<td style="padding:0;line-height:0;">{img}</td>'
-        footer_row = (f'<tr><td style="padding:0;line-height:0;">'
-                      f'<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
-                      f'<tr>{cells}</tr></table></td></tr>')
+            href = SITE_BIDS if seg["kind"] == "dash" else unsub
+            rows_f += (f'<tr><td style="padding:0;"><a href="{href}" target="_blank" style="text-decoration:none;">'
+                       f'<img src="cid:{seg["cid"]}" width="{seg["w"]}" alt="" '
+                       f'style="display:block;border:0;width:{seg["w"]}px;"></a></td></tr>')
+        # 구독 해지: 지면(이미지) 아래 텍스트 링크 — 수신자별 URL
+        rows_f += (f'<tr><td align="center" style="padding:8px 0 4px;">'
+                   f'<a href="{unsub}" style="font-family:{FONT};font-size:12px;color:#8592a6;">구독 해지</a>'
+                   f'</td></tr>')
+        footer_row = rows_f
     else:
         footer_row = _footer(unsubscribe_token)
 
