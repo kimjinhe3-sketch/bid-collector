@@ -103,9 +103,9 @@ jobs:
 
       - name: 메일 렌더 준비 (playwright + Pretendard — v2 이미지형 다이제스트용)
         # 실패해도 발송은 진행 — send_alerts 가 텍스트 HTML 로 자동 폴백
+        # ⛔ 2026-08-18 사내 아웃룩 이미지 차단 이슈로 정기 발송 일시 중단 (수동 테스트만 허용)
         if: >
-          github.event.schedule == '0 23 * * *' ||
-          (github.event_name == 'workflow_dispatch' && github.event.inputs.send_mode != 'none')
+          github.event_name == 'workflow_dispatch' && github.event.inputs.send_mode != 'none'
         continue-on-error: true
         run: |
           pip install playwright
@@ -121,9 +121,9 @@ jobs:
         #   - 수동 + send_mode=test → ADMIN_EMAIL 1명에게만
         #   - 수동 + send_mode=none(기본) → 발송 안 함 (수집만)
         #   - 07/12/18시 cron → 발송 안 함 (데이터만 갱신)
+        # ⛔ 2026-08-18 사내 아웃룩 이미지 차단 이슈로 정기 발송 일시 중단 (수동 테스트만 허용)
         if: >
-          github.event.schedule == '0 23 * * *' ||
-          (github.event_name == 'workflow_dispatch' && github.event.inputs.send_mode != 'none')
+          github.event_name == 'workflow_dispatch' && github.event.inputs.send_mode != 'none'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MAIL_FROM: ${{ secrets.MAIL_FROM }}
