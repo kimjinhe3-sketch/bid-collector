@@ -86,7 +86,8 @@ def run(dry_run: bool = False, test_only: bool = False) -> int:
     print(f"[send_alerts] subject: {subject}")
     print(f"[send_alerts] counts: {data['counts']}")
 
-    images = digest_v2.render_blocks(blocks)
+    rendered = digest_v2.render_blocks(blocks)
+    images, footer_segs = rendered if rendered else (None, None)
     mode = "image" if images else "text-fallback"
     print(f"[send_alerts] render: {mode}"
           + (f" ({sum(len(v) for v in images.values()) // 1024}KB, {len(images)}블록)" if images else ""))
@@ -94,7 +95,7 @@ def run(dry_run: bool = False, test_only: bool = False) -> int:
     if dry_run:
         out = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "digest_preview")
         os.makedirs(out, exist_ok=True)
-        html = (digest_v2.compose_image_mail(blocks, "preview-token") if images
+        html = (digest_v2.compose_image_mail(blocks, "preview-token", footer_segs) if images
                 else digest_v2.compose_text_mail(blocks, "preview-token"))
         open(os.path.join(out, "preview.html"), "w", encoding="utf-8").write(html)
         if images:
@@ -117,7 +118,7 @@ def run(dry_run: bool = False, test_only: bool = False) -> int:
     for s in subs:
         token = s.get("unsubscribe_token") or ""
         if images:
-            html = digest_v2.compose_image_mail(blocks, token)
+            html = digest_v2.compose_image_mail(blocks, token, footer_segs)
             ok = send_mail_images(s["email"], subject, html, images)
             if not ok:  # 이미지 발송 불가(SMTP 미설정 등) → 텍스트 폴백
                 ok = send_mail(s["email"], subject, digest_v2.compose_text_mail(blocks, token))

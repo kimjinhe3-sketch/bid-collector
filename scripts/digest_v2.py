@@ -400,21 +400,54 @@ def render_blocks(blocks: list[dict]) -> dict[str, bytes] | None:
             '#cap{{width:{w}px;box-sizing:border-box;background:#f3f7fc;'
             'padding:{pt}px 12px {pb}px;}}'
             '</style></head><body><div id="cap">{inner}</div></body></html>')
+    footer_html = (
+        f'<div style="font-family:{FONT};font-size:12px;color:#8592a6;line-height:1.7;'
+        f'text-align:center;padding-top:2px;">'
+        f'공공입찰 수집 시스템 · 평일 오전 8시 발송 · '
+        f'<span id="lnk-dash" style="color:#8592a6;">대시보드</span> · '
+        f'<span id="lnk-unsub" style="color:#8592a6;">구독 해지</span></div>')
+
     try:
         images: dict[str, bytes] = {}
+        footer_segs: list[dict] = []
         with tempfile.TemporaryDirectory() as td, sync_playwright() as p:
             browser = p.chromium.launch()
             page = browser.new_page(viewport={"width": 680, "height": 400}, device_scale_factor=2)
             for i, b in enumerate(blocks):
                 pt = 10 if i == 0 else 0
-                pb = 18 if i == len(blocks) - 1 else 10
+                pb = 10 if i == len(blocks) - 1 else 10
                 f = Path(td) / (b["name"] + ".html")
                 f.write_text(wrap.format(inner=b["html"], w=IMG_W, pt=pt, pb=pb), encoding="utf-8")
                 page.goto(f.as_uri())
                 page.wait_for_timeout(120)
                 images[b["name"]] = page.locator("#cap").screenshot()
+
+            # ── 푸터: 한 장 렌더 후 5조각 분할 — 대시보드/구독해지 조각만 수신자별 링크 ──
+            f = Path(td) / "footer.html"
+            f.write_text(wrap.format(inner=footer_html, w=IMG_W, pt=0, pb=24), encoding="utf-8")
+            page.goto(f.as_uri())
+            page.wait_for_timeout(120)
+            cap = page.locator("#cap").bounding_box()
+            d = page.locator("#lnk-dash").bounding_box()
+            u = page.locator("#lnk-unsub").bounding_box()
+            # 경계(캡처 기준 CSS px) — 링크 단어를 온전히 포함하도록 바깥쪽 반올림
+            import math
+            xs = [0,
+                  math.floor(d["x"] - cap["x"]), math.ceil(d["x"] - cap["x"] + d["width"]),
+                  math.floor(u["x"] - cap["x"]), math.ceil(u["x"] - cap["x"] + u["width"]),
+                  IMG_W]
+            kinds = [None, "dash", None, "unsub", None]
+            for i in range(5):
+                w = xs[i + 1] - xs[i]
+                if w <= 0:
+                    continue
+                png = page.screenshot(clip={"x": cap["x"] + xs[i], "y": cap["y"],
+                                            "width": w, "height": cap["height"]})
+                cid = f"fz{i}"
+                images[cid] = png
+                footer_segs.append({"cid": cid, "w": w, "kind": kinds[i]})
             browser.close()
-        return images
+        return images, footer_segs
     except Exception as e:
         print(f"[digest_v2] render failed ({e}) — 텍스트 폴백", file=sys.stderr)
         return None
@@ -430,19 +463,39 @@ def _footer(unsubscribe_token: str) -> str:
             f'<a href="{unsub}" style="color:#8592a6;">구독 해지</a></div></td></tr>')
 
 
-def compose_image_mail(blocks: list[dict], unsubscribe_token: str) -> str:
-    # 간격 없이(0px) 쌓기 — 여백은 이미지 안에 구워져 있음 (다크모드가 사이를 못 칠함)
+def compose_image_mail(blocks: list[dict], unsubscribe_token: str,
+                       footer_segs: list[dict] | None = None) -> str:
+    # 간격 없이(0px) 쌓기 — 여백·배경은 이미지 안에 구워져 있음 (다크모드가 사이를 못 칠함)
     rows = "".join(
         f'<tr><td style="padding:0;line-height:0;"><a href="{b["link"]}" target="_blank" style="text-decoration:none;">'
         f'<img src="cid:{b["name"]}" width="{IMG_W}" alt="공공입찰 일일 리포트" '
         f'style="display:block;border:0;width:{IMG_W}px;max-width:100%;"></a></td></tr>\n'
         for b in blocks)
+
+    if footer_segs:
+        # 푸터도 밝은 지면 이미지 — 대시보드/구독해지 조각만 링크 (해지 URL 은 수신자별)
+        unsub = f"{SITE_URL}/unsubscribe?token={quote(unsubscribe_token)}"
+        cells = ""
+        for seg in footer_segs:
+            img = (f'<img src="cid:{seg["cid"]}" width="{seg["w"]}" alt="" '
+                   f'style="display:block;border:0;width:{seg["w"]}px;">')
+            if seg["kind"] == "dash":
+                img = f'<a href="{SITE_BIDS}" target="_blank" style="text-decoration:none;">{img}</a>'
+            elif seg["kind"] == "unsub":
+                img = f'<a href="{unsub}" target="_blank" style="text-decoration:none;">{img}</a>'
+            cells += f'<td style="padding:0;line-height:0;">{img}</td>'
+        footer_row = (f'<tr><td style="padding:0;line-height:0;">'
+                      f'<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
+                      f'<tr>{cells}</tr></table></td></tr>')
+    else:
+        footer_row = _footer(unsubscribe_token)
+
     return (f'<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"></head>'
             f'<body style="margin:0;padding:0;" bgcolor="#f3f7fc">'
             f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#f3f7fc" style="border-collapse:collapse;">'
-            f'<tr><td align="center" style="padding:0 0 20px;">'
+            f'<tr><td align="center" style="padding:0;">'
             f'<table role="presentation" width="{IMG_W}" cellpadding="0" cellspacing="0" style="width:{IMG_W}px;max-width:100%;border-collapse:collapse;">'
-            f'{rows}{_footer(unsubscribe_token)}'
+            f'{rows}{footer_row}'
             f'</table></td></tr></table></body></html>')
 
 
@@ -464,5 +517,9 @@ if __name__ == "__main__":
     print("counts:", json.dumps(data["counts"], ensure_ascii=False))
     print("subject:", subject_line(data))
     blocks = build_blocks(data)
-    imgs = render_blocks(blocks)
-    print("render:", "OK " + str([len(v) // 1024 for v in imgs.values()]) + "KB" if imgs else "FAILED(폴백)")
+    rendered = render_blocks(blocks)
+    if rendered:
+        imgs, segs = rendered
+        print("render: OK", [len(v) // 1024 for v in imgs.values()], "KB / footer segs:", len(segs))
+    else:
+        print("render: FAILED(폴백)")
