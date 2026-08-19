@@ -57,6 +57,8 @@ jobs:
         run: |
           if [ -n "${{ github.event.inputs.start }}" ] && [ -n "${{ github.event.inputs.end }}" ]; then
             python -m scripts.collect_results --start "${{ github.event.inputs.start }}" --end "${{ github.event.inputs.end }}"
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            python -m scripts.collect_results --auto
           else
             python -m scripts.collect_results --days "${{ github.event.inputs.days || '3' }}"
           fi

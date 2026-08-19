@@ -71,6 +71,23 @@ def upsert_results(rows: list[dict]) -> int:
         conn.close()
 
 
+def _oldest_date():
+    """bid_results 의 가장 오래된 개찰일 (자동 소급의 진행 포인터)."""
+    import psycopg2
+    url = os.environ["DATABASE_URL"]
+    if "sslmode=" not in url:
+        url = f"{url}{'&' if '?' in url else '?'}sslmode=require"
+    conn = psycopg2.connect(url)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT MIN(open_result_date) FROM bid_results "
+                        "WHERE open_result_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'")
+            row = cur.fetchone()
+            return date.fromisoformat(row[0]) if row and row[0] else None
+    finally:
+        conn.close()
+
+
 def main() -> int:
     setup_logger(level="INFO")
     logger = get_logger("collect_results")
@@ -79,6 +96,8 @@ def main() -> int:
     ap.add_argument("--days", type=int, default=3, help="최근 N일 (기본 3 — 확정치 재수집)")
     ap.add_argument("--start", help="백필 시작일 YYYY-MM-DD")
     ap.add_argument("--end", help="백필 종료일 YYYY-MM-DD")
+    ap.add_argument("--auto", action="store_true",
+                    help="정기 모드: 최근 3일 + 과거로 5일씩 자동 소급 (목표일까지)")
     args = ap.parse_args()
 
     key = os.environ.get("G2B_SERVICE_KEY")
@@ -88,6 +107,26 @@ def main() -> int:
     if not os.environ.get("DATABASE_URL"):
         logger.error("DATABASE_URL 미설정")
         return 1
+
+    if args.auto:
+        # 1) 최근 3일 (당일 개찰 + 최종낙찰 확정치 갱신)
+        end = date.today()
+        start = end - timedelta(days=2)
+        rows = result_api.collect_range(key, start, end)
+        n1 = upsert_results(rows)
+        print(f"[collect_results] 최근분 upserted={n1} range={start}~{end}")
+        # 2) 과거 소급: DB 최고(最古) 개찰일 이전 5일 — 목표일 도달 시 중단
+        oldest = _oldest_date()
+        target = date.fromisoformat(os.environ.get("RESULTS_BACKFILL_TARGET", "2026-02-19"))
+        if oldest and oldest > target:
+            b_end = oldest - timedelta(days=1)
+            b_start = max(b_end - timedelta(days=4), target)
+            rows = result_api.collect_range(key, b_start, b_end)
+            n2 = upsert_results(rows)
+            print(f"[collect_results] 소급분 upserted={n2} range={b_start}~{b_end} (목표 {target})")
+        else:
+            print(f"[collect_results] 소급 완료 상태 (최고 {oldest}, 목표 {target})")
+        return 0
 
     if args.start and args.end:
         start, end = date.fromisoformat(args.start), date.fromisoformat(args.end)
