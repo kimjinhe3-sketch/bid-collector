@@ -1,0 +1,39 @@
+name: Recommend (투찰 추천 갱신)
+
+# P1 추천 엔진 — bid_results 학습 → 진행중 공고 추천 계산 → bid_recommendations 캐시.
+# 개찰결과 수집(20:00) 후 20:40 에 갱신. API 호출 없음(DB 내부 연산만).
+
+on:
+  schedule:
+    - cron: '40 11 * * 1-5'   # 20:40 KST 평일
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recommend
+  cancel-in-progress: false
+
+jobs:
+  recommend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'requirements.txt'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: 추천 계산
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -m scripts.recommend_engine
