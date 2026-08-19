@@ -52,6 +52,11 @@ CREATE TABLE IF NOT EXISTS bid_recommendations (
 -- ③ 섀도우 모델 (기관 사정율 편향 반영) — 실제 노출 안 함, 채점 비교용 (2026-08-19)
 ALTER TABLE bid_recommendations ADD COLUMN IF NOT EXISTS rec_bid_amount_v2 BIGINT;
 ALTER TABLE bid_recommendations ADD COLUMN IF NOT EXISTS expected_sajeong_v2 NUMERIC(8,4);
+-- 실행 순서 무관 보장: 공고 실제값 컬럼 (본생성은 수집기 init_db — 여기선 멱등 백업)
+ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS win_lower_rate NUMERIC(8,4);
+ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS base_price BIGINT;
+ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS prc_rng_bgn NUMERIC(6,2);
+ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS prc_rng_end NUMERIC(6,2);
 """
 
 

@@ -40,6 +40,9 @@ CREATE INDEX IF NOT EXISTS idx_rec_scores_date ON bid_rec_scores(open_result_dat
 ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS eff_rate NUMERIC(8,4);     -- 유효율 = 추천금액/실제예정가
 ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS eff_rate_v2 NUMERIC(8,4);
 ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS outcome_v2 TEXT;           -- 섀도우 모델 결과
+-- 실행 순서 무관 보장: 참조하는 bid_recommendations v2 컬럼도 여기서 멱등 생성
+ALTER TABLE bid_recommendations ADD COLUMN IF NOT EXISTS rec_bid_amount_v2 BIGINT;
+ALTER TABLE bid_recommendations ADD COLUMN IF NOT EXISTS expected_sajeong_v2 NUMERIC(8,4);
 """
 
 # 채점: 개찰결과 중 적격심사 + 추천 캐시가 존재하고 아직 채점 안 된 건
