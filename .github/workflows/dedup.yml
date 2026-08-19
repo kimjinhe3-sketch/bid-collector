@@ -1,0 +1,44 @@
+name: Dedup Bids (중복 정리)
+
+# bid_announcements 중복 정리 — 규칙A(차수) + 규칙B(완전동일 재공고).
+# 평상시엔 daily-collect 내 스텝으로 자동 실행되고, 이 워크플로우는 수동 실행용.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "dry-run (건수만 확인, 삭제 안 함)"
+        type: choice
+        default: "true"
+        options: ["true", "false"]
+
+permissions:
+  contents: read
+
+jobs:
+  dedup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'requirements.txt'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: 중복 정리
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "false" ]; then
+            python scripts/dedup_bids.py
+          else
+            python scripts/dedup_bids.py --dry-run
+          fi

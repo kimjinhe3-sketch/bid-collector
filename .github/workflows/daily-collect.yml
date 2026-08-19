@@ -101,6 +101,13 @@ jobs:
         run: python scripts/cleanup_old_bids.py
         continue-on-error: true   # 정리 실패해도 워크플로우 전체 fail 시키지 않음
 
+      - name: 중복 정리 (차수·재공고 — 최신 행만 유지, 담당자 할당 보호)
+        # lookback 14일 안의 옛 차수가 매 수집마다 재유입되므로 수집 직후 항상 실행
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python scripts/dedup_bids.py
+        continue-on-error: true
+
       - name: 메일 렌더 준비 (playwright + Pretendard — v2 이미지형 다이제스트용)
         # 실패해도 발송은 진행 — send_alerts 가 텍스트 HTML 로 자동 폴백
         # ⛔ 2026-08-18 사내 아웃룩 이미지 차단 이슈로 정기 발송 일시 중단 (수동 테스트만 허용)
