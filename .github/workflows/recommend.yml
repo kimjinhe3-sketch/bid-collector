@@ -33,6 +33,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+      - name: 추천 채점 (개찰 완료건 — lesson learned 성적 누적)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -m scripts.score_recommendations
+        continue-on-error: true
+
       - name: 추천 계산
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
