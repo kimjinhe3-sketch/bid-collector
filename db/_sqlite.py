@@ -19,6 +19,7 @@ SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 COLUMNS = (
     "source", "bid_no", "title", "org_name", "region", "contract_method",
     "estimated_price", "open_date", "close_date", "bid_type", "detail_url",
+    "win_lower_rate", "base_price", "prc_rng_bgn", "prc_rng_end",
 )
 
 
@@ -44,6 +45,12 @@ def init_db(db_path: str | Path) -> None:
     with connect(db_path) as conn:
         conn.executescript(schema)
         # 기존 DB 에 region 컬럼 마이그레이션 (idempotent)
+        for col, typ in (("win_lower_rate", "REAL"), ("base_price", "INTEGER"),
+                         ("prc_rng_bgn", "REAL"), ("prc_rng_end", "REAL")):
+            try:
+                conn.execute(f"ALTER TABLE bid_announcements ADD COLUMN {col} {typ}")
+            except Exception:
+                pass
         try:
             conn.execute("ALTER TABLE bid_announcements ADD COLUMN region TEXT")
             logger.info("migrated: added region column")

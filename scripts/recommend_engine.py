@@ -49,6 +49,9 @@ CREATE TABLE IF NOT EXISTS bid_recommendations (
     computed_at      TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(source, bid_no)
 );
+-- ③ 섀도우 모델 (기관 사정율 편향 반영) — 실제 노출 안 함, 채점 비교용 (2026-08-19)
+ALTER TABLE bid_recommendations ADD COLUMN IF NOT EXISTS rec_bid_amount_v2 BIGINT;
+ALTER TABLE bid_recommendations ADD COLUMN IF NOT EXISTS expected_sajeong_v2 NUMERIC(8,4);
 """
 
 
@@ -99,6 +102,7 @@ class SegmentBook:
         self.by_div = defaultdict(list)
         self.lower_by_div_band = defaultdict(list)
         self.ratio_by_div = defaultdict(list)
+        self.sj_by_org = defaultdict(list)   # ③ 섀도우: 발주기관별 사정율
         for x in results:
             div = x["bsns_div"]
             self.by_org[(x["org_name"], div)].append(x)
@@ -106,6 +110,8 @@ class SegmentBook:
             self.by_band[(div, round(x["_lw"], 3))].append(x)
             self.by_div[div].append(x)
             self.lower_by_div_band[(div, x["_band"])].append(round(x["_lw"], 3))
+            if x["_sj"] is not None:
+                self.sj_by_org[x["org_name"]].append(x["_sj"])
             if x["base_price"] and x["presmpt_price"]:
                 r = x["base_price"] / x["presmpt_price"]
                 if 0.9 <= r <= 1.3:
@@ -131,6 +137,15 @@ class SegmentBook:
                 return "공종x하한율", items
         return "공종전체", self.by_div.get(div) or []
 
+    def org_sajeong(self, org: str, seg_median: float, k: int = 8) -> float | None:
+        """③ 기관 사정율 수축(shrinkage) 추정 — n<8 이면 None (섀도우 미적용).
+        소표본 과적합 방지: (n*기관중앙 + k*세그중앙) / (n+k)."""
+        vals = self.sj_by_org.get(org) or []
+        if len(vals) < 8:
+            return None
+        org_med = statistics.median(vals)
+        return (len(vals) * org_med + k * seg_median) / (len(vals) + k)
+
     def ratio(self, div: str) -> float:
         vals = self.ratio_by_div.get(div) or []
         return statistics.median(vals) if len(vals) >= 5 else 1.1  # 통상 부가세 배율
@@ -142,7 +157,8 @@ BID_TYPE_MAP = {"물품": "물품", "공사": "공사", "용역": "용역"}
 def load_active_bids(cur) -> list[dict]:
     today = (datetime.now(timezone.utc) + timedelta(hours=9)).date().isoformat()
     cur.execute(
-        "SELECT source, bid_no, title, org_name, bid_type, estimated_price "
+        "SELECT source, bid_no, title, org_name, bid_type, estimated_price, "
+        "       win_lower_rate, base_price "
         "FROM bid_announcements "
         "WHERE source LIKE 'g2b_api%%' AND estimated_price > 0 "
         "  AND bid_type = ANY(%s) "
@@ -157,9 +173,16 @@ def recommend(bid: dict, book: SegmentBook) -> dict | None:
         return None
     presmpt = bid["estimated_price"]
     ratio = book.ratio(div)
-    base_est = presmpt * ratio
+    # ② 기초금액: 공고 실제값 우선, 없으면 추정 폴백
+    actual_base = bid.get("base_price")
+    base_est = actual_base or (presmpt * ratio)
     band = amount_band(base_est)
-    lower, lower_conf, lower_n = book.est_lower(div, band)
+    # ② 낙찰하한율: 공고 실제값 우선 (sucsfbidLwltRate), 없으면 최빈 추정 폴백
+    actual_lower = bid.get("win_lower_rate")
+    if actual_lower:
+        lower, lower_conf, lower_n = float(actual_lower), 1.0, 0
+    else:
+        lower, lower_conf, lower_n = book.est_lower(div, band)
     if lower is None:
         return None
     otype = org_type(bid.get("org_name"))
@@ -172,19 +195,32 @@ def recommend(bid: dict, book: SegmentBook) -> dict | None:
     margin = _q(ms, 0.25)
     rec_rate = round(lower + margin, 4)
     rec_amount = int(base_est * (exp_sj / 100) * (rec_rate / 100) // 10 * 10)
+
+    # ③ 섀도우: 기관 사정율 편향(수축) 적용 금액 — 노출 안 함, 채점 비교 전용
+    sj_v2 = book.org_sajeong(bid.get("org_name") or "", exp_sj)
+    rec_amount_v2 = (int(base_est * (sj_v2 / 100) * (rec_rate / 100) // 10 * 10)
+                     if sj_v2 is not None else None)
+
+    # 신뢰도 — 하한율이 공고 실제값이면 한 단계 승격
     if level == "발주기관" and lower_conf >= 0.7:
         conf = "high"
     elif level in ("기관유형", "공종x하한율") and lower_conf >= 0.5:
         conf = "medium"
     else:
         conf = "low"
+    if actual_lower and conf != "high":
+        conf = "high" if level in ("발주기관", "기관유형") else "medium"
     return {
         "source": bid["source"], "bid_no": bid["bid_no"],
         "rec_bid_rate": rec_rate, "rec_bid_amount": rec_amount,
+        "rec_bid_amount_v2": rec_amount_v2,
+        "expected_sajeong_v2": round(sj_v2, 4) if sj_v2 is not None else None,
         "est_lower_rate": lower, "expected_sajeong": round(exp_sj, 4),
         "margin": round(margin, 4), "confidence": conf, "sample_count": len(items),
         "rationale": json.dumps({
             "segment": level, "n": len(items),
+            "lower_src": "공고" if actual_lower else "추정",
+            "base_src": "공고" if actual_base else "추정",
             "lower_mode_share": round(lower_conf, 3), "lower_n": lower_n,
             "base_ratio": round(ratio, 4), "band": band, "org_type": otype,
             "margin_p25_p50_p75": [round(_q(ms, p), 3) for p in (0.25, 0.5, 0.75)],
@@ -209,7 +245,8 @@ def main() -> int:
             logger.info("학습 %d건 / 대상 공고 %d건", len(results), len(bids))
 
             recs = [r for r in (recommend(b, book) for b in bids) if r]
-            cols = ("source", "bid_no", "rec_bid_rate", "rec_bid_amount", "est_lower_rate",
+            cols = ("source", "bid_no", "rec_bid_rate", "rec_bid_amount",
+                    "rec_bid_amount_v2", "expected_sajeong_v2", "est_lower_rate",
                     "expected_sajeong", "margin", "confidence", "sample_count", "rationale")
             import psycopg2.extras
             sql = (f"INSERT INTO bid_recommendations ({', '.join(cols)}) "

@@ -11,6 +11,10 @@ CREATE TABLE IF NOT EXISTS bid_announcements (
     close_date      TEXT,
     bid_type        TEXT,
     detail_url      TEXT,
+    win_lower_rate  REAL,
+    base_price      INTEGER,
+    prc_rng_bgn     REAL,
+    prc_rng_end     REAL,
     created_at      TEXT    DEFAULT CURRENT_TIMESTAMP,
     is_notified     INTEGER DEFAULT 0,
     UNIQUE(source, bid_no)

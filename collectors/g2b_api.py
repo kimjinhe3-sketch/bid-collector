@@ -40,6 +40,15 @@ def _yesterday_range(now: datetime | None = None, lookback_days: int = 1) -> tup
     return start.strftime(fmt), end.strftime(fmt)
 
 
+def _safe_float(v) -> float | None:
+    if v is None or v == "":
+        return None
+    try:
+        return float(v)
+    except (ValueError, TypeError):
+        return None
+
+
 def _safe_int(v) -> int | None:
     if v is None or v == "":
         return None
@@ -76,6 +85,8 @@ def _normalize(item: dict, source: str, bid_type: str) -> dict | None:
         "close_date": item.get("bidClseDt") or item.get("opengDt"),
         "bid_type": bid_type,
         "detail_url": item.get("bidNtceDtlUrl") or item.get("bidNtceUrl"),
+        # 낙찰하한율 — 공고 응답에 실제값 포함 (AI 추천 정확도용, 2026-08-19)
+        "win_lower_rate": _safe_float(item.get("sucsfbidLwltRate")),
     }
 
 
@@ -148,6 +159,59 @@ def _extract_items(body: dict) -> list[dict]:
     return []
 
 
+BSIS_OPERATIONS = (  # 기초금액·복수예가 범위 — 공고와 별도 오퍼레이션 (물품/용역/공사)
+    "getBidPblancListInfoThngBsisAmount",
+    "getBidPblancListInfoServcBsisAmount",
+    "getBidPblancListInfoCnstwkBsisAmount",
+)
+
+
+def fetch_base_amounts(
+    service_key: str,
+    inqry_bgn: str,
+    inqry_end: str,
+    page_size: int = 999,
+    sleep_seconds: float = 0.2,
+    http_client: Callable = http_get_json,
+) -> dict[str, dict]:
+    """공고번호("no-ord") → {base_price, prc_rng_bgn, prc_rng_end}."""
+    out: dict[str, dict] = {}
+    for op in BSIS_OPERATIONS:
+        url = f"{BASE_URL}/{op}"
+        params = {
+            "serviceKey": service_key, "pageNo": 1, "numOfRows": page_size,
+            "inqryDiv": 1, "inqryBgnDt": inqry_bgn, "inqryEndDt": inqry_end, "type": "json",
+        }
+        try:
+            first = http_client(url, params, sleep_seconds=sleep_seconds)
+        except Exception:
+            logger.exception("bsis first page failed: %s", op)
+            continue
+        body = first.get("response", {}).get("body", {})
+        total = int(body.get("totalCount") or 0)
+        pages = min(math.ceil(total / page_size) if total else 0, 30) or 1
+        items = _extract_items(body)
+        for page_no in range(2, pages + 1):
+            try:
+                data = http_client(url, {**params, "pageNo": page_no}, sleep_seconds=sleep_seconds)
+                items += _extract_items(data.get("response", {}).get("body", {}))
+            except Exception:
+                logger.exception("bsis page failed: %s p=%d", op, page_no)
+        for it in items:
+            no = it.get("bidNtceNo")
+            if not no:
+                continue
+            ord_no = it.get("bidNtceOrd") or ""
+            key = f"{no}-{ord_no}" if ord_no else str(no)
+            out[key] = {
+                "base_price": _safe_int(it.get("bssamt")),
+                "prc_rng_bgn": _safe_float(it.get("rsrvtnPrceRngBgnRate")),
+                "prc_rng_end": _safe_float(it.get("rsrvtnPrceRngEndRate")),
+            }
+    logger.info("g2b bsis amounts: %d 공고", len(out))
+    return out
+
+
 def collect_all(
     service_key: str,
     page_size: int = 100,
@@ -193,4 +257,19 @@ def collect_all(
         ]
         for fut in as_completed(futures):
             all_rows.extend(fut.result())
+
+    # 기초금액·예가범위 병합 (실패해도 공고 수집엔 영향 없음)
+    try:
+        bsis = fetch_base_amounts(service_key, inqry_bgn, inqry_end,
+                                  page_size=page_size, sleep_seconds=sleep_seconds,
+                                  http_client=http_client)
+        hit = 0
+        for r in all_rows:
+            b = bsis.get(r["bid_no"])
+            if b:
+                r.update(b)
+                hit += 1
+        logger.info("g2b bsis merge: %d/%d 공고에 기초금액 결합", hit, len(all_rows))
+    except Exception:
+        logger.exception("bsis merge failed — 공고 수집은 정상 진행")
     return all_rows

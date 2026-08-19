@@ -28,6 +28,8 @@ logger = get_logger("bid_collector.db.postgres")
 COLUMNS = (
     "source", "bid_no", "title", "org_name", "region", "contract_method",
     "estimated_price", "open_date", "close_date", "bid_type", "detail_url",
+    # 2026-08-19 AI 추천 정확도: 공고 시점 실제값 (없으면 NULL — 추천 엔진이 추정 폴백)
+    "win_lower_rate", "base_price", "prc_rng_bgn", "prc_rng_end",
 )
 
 SCHEMA_SQL = """
@@ -50,6 +52,11 @@ CREATE TABLE IF NOT EXISTS bid_announcements (
 );
 -- region 컬럼 추가 (기존 DB 마이그레이션, idempotent)
 ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS region TEXT;
+-- AI 추천용 공고 실제값 (2026-08-19)
+ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS win_lower_rate NUMERIC(8,4);
+ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS base_price BIGINT;
+ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS prc_rng_bgn NUMERIC(6,2);
+ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS prc_rng_end NUMERIC(6,2);
 CREATE INDEX IF NOT EXISTS idx_bids_created  ON bid_announcements(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bids_open     ON bid_announcements(open_date);
 CREATE INDEX IF NOT EXISTS idx_bids_notified ON bid_announcements(is_notified);

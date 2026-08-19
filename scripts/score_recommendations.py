@@ -36,28 +36,43 @@ CREATE TABLE IF NOT EXISTS bid_rec_scores (
     scored_at        TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_rec_scores_date ON bid_rec_scores(open_result_date);
+-- 금액 기준 채점 + ③ 섀도우 비교 (2026-08-19)
+ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS eff_rate NUMERIC(8,4);     -- 유효율 = 추천금액/실제예정가
+ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS eff_rate_v2 NUMERIC(8,4);
+ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS outcome_v2 TEXT;           -- 섀도우 모델 결과
 """
 
 # 채점: 개찰결과 중 적격심사 + 추천 캐시가 존재하고 아직 채점 안 된 건
 SCORE_SQL = """
 INSERT INTO bid_rec_scores
   (bid_no, rec_bid_rate, est_lower_rate, confidence,
-   actual_win_rate, actual_lower, actual_sajeong, outcome, diff, lower_hit, open_result_date)
+   actual_win_rate, actual_lower, actual_sajeong,
+   eff_rate, outcome, eff_rate_v2, outcome_v2,
+   diff, lower_hit, open_result_date)
 SELECT r.bid_no,
        c.rec_bid_rate, c.est_lower_rate, c.confidence,
        r.win_bid_rate, r.win_lower_rate, r.sajeong_rate,
-       CASE
-         WHEN c.rec_bid_rate < r.win_lower_rate THEN 'under'
-         WHEN c.rec_bid_rate < r.win_bid_rate  THEN 'win'
-         ELSE 'beaten'
-       END,
+       e.eff, 
+       CASE WHEN e.eff < r.win_lower_rate THEN 'under'
+            WHEN e.eff < r.win_bid_rate  THEN 'win'
+            ELSE 'beaten' END,
+       e.eff2,
+       CASE WHEN e.eff2 IS NULL THEN NULL
+            WHEN e.eff2 < r.win_lower_rate THEN 'under'
+            WHEN e.eff2 < r.win_bid_rate  THEN 'win'
+            ELSE 'beaten' END,
        c.rec_bid_rate - r.win_bid_rate,
        ABS(c.est_lower_rate - r.win_lower_rate) < 0.001,
        r.open_result_date
 FROM bid_results r
 JOIN bid_recommendations c ON c.bid_no = r.bid_no
+CROSS JOIN LATERAL (
+  SELECT ROUND(c.rec_bid_amount::numeric    / r.planned_price * 100, 4) AS eff,
+         ROUND(c.rec_bid_amount_v2::numeric / r.planned_price * 100, 4) AS eff2
+) e
 WHERE r.decision_method LIKE '%적격%'
   AND r.win_bid_rate IS NOT NULL AND r.win_lower_rate IS NOT NULL
+  AND r.planned_price > 0 AND c.rec_bid_amount > 0
   AND (r.win_bid_rate - r.win_lower_rate) BETWEEN 0 AND 15
 ON CONFLICT (bid_no) DO NOTHING
 """
@@ -68,7 +83,9 @@ SELECT COUNT(*) AS n,
        ROUND(AVG(CASE WHEN outcome = 'under'  THEN 100.0 ELSE 0 END), 1) AS under_pct,
        ROUND(AVG(CASE WHEN outcome = 'beaten' THEN 100.0 ELSE 0 END), 1) AS beaten_pct,
        ROUND(AVG(CASE WHEN ABS(diff) <= 0.3   THEN 100.0 ELSE 0 END), 1) AS hit03_pct,
-       ROUND(AVG(CASE WHEN lower_hit          THEN 100.0 ELSE 0 END), 1) AS lower_hit_pct
+       ROUND(AVG(CASE WHEN lower_hit          THEN 100.0 ELSE 0 END), 1) AS lower_hit_pct,
+       COUNT(outcome_v2) AS n_v2,
+       ROUND(AVG(CASE WHEN outcome_v2 = 'win' THEN 100.0 END), 1) AS win_v2_pct
 FROM bid_rec_scores
 WHERE open_result_date >= to_char(NOW() - INTERVAL '%s days', 'YYYY-MM-DD')
 """
@@ -94,7 +111,8 @@ def main() -> int:
                 s = cur.fetchone()
                 if s and s["n"]:
                     print(f"[score] {label}: n={s['n']}  낙찰권 {s['win_pct']}% / 미달 {s['under_pct']}% / "
-                          f"밀림 {s['beaten_pct']}% / ±0.3적중 {s['hit03_pct']}% / 하한율적중 {s['lower_hit_pct']}%")
+                          f"밀림 {s['beaten_pct']}% / ±0.3적중 {s['hit03_pct']}% / 하한율적중 {s['lower_hit_pct']}%"
+                          + (f" | 섀도우(v2) n={s['n_v2']} 낙찰권 {s['win_v2_pct']}%" if s.get('n_v2') else ""))
         print(f"[score] 신규 채점 {new}건")
         return 0
     finally:
