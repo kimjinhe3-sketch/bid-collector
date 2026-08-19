@@ -57,6 +57,8 @@ ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS win_lower_rate NUMERIC(8,
 ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS base_price BIGINT;
 ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS prc_rng_bgn NUMERIC(6,2);
 ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS prc_rng_end NUMERIC(6,2);
+-- 웹 정렬용: AI 추천 신뢰도 랭크 (high=3/medium=2/low=1, 추천 없음=NULL)
+ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS rec_rank SMALLINT;
 """
 
 
@@ -260,6 +262,13 @@ def main() -> int:
                    + ", ".join(f"{c}=EXCLUDED.{c}" for c in cols if c not in ("source", "bid_no"))
                    + ", computed_at=NOW()")
             psycopg2.extras.execute_batch(cur, sql, recs, page_size=200)
+            # 웹 "AI 추천" 정렬용 랭크를 공고 테이블에 동기화
+            cur.execute(
+                "UPDATE bid_announcements a SET rec_rank = sub.rank "
+                "FROM (SELECT bid_no, CASE confidence WHEN 'high' THEN 3 "
+                "      WHEN 'medium' THEN 2 ELSE 1 END AS rank "
+                "      FROM bid_recommendations) sub "
+                "WHERE a.bid_no = sub.bid_no AND a.source LIKE 'g2b_api%%'")
         conn.commit()
         by_conf = Counter(r["confidence"] for r in recs)
         print(f"[recommend_engine] 추천 {len(recs)}건 저장 (high {by_conf.get('high',0)} / "
