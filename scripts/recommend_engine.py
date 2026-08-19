@@ -144,7 +144,7 @@ def load_active_bids(cur) -> list[dict]:
     cur.execute(
         "SELECT source, bid_no, title, org_name, bid_type, estimated_price "
         "FROM bid_announcements "
-        "WHERE source LIKE 'g2b_api%' AND estimated_price > 0 "
+        "WHERE source LIKE 'g2b_api%%' AND estimated_price > 0 "
         "  AND bid_type = ANY(%s) "
         "  AND close_date IS NOT NULL AND SUBSTR(REPLACE(close_date,'/','-'),1,10) >= %s",
         (list(BID_TYPE_MAP), today))
