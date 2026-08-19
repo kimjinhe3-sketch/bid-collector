@@ -1,0 +1,62 @@
+name: Collect Results (개찰결과)
+
+# AI 투찰 추천 P0 — 나라장터 개찰결과(낙찰정보) 수집 → bid_results 테이블.
+# 기존 daily-collect 와 완전 분리 (신규 테이블 전용, 기존 서비스 무영향).
+#
+# - 평일 20:00 KST: 최근 3일 재수집 (당일 개찰 + 최종낙찰 확정치 갱신)
+# - 수동 실행: 기간 지정 백필 가능
+
+on:
+  schedule:
+    - cron: '0 11 * * 1-5'   # 20:00 KST 평일
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "최근 N일 수집 (start/end 미지정 시)"
+        default: "3"
+      start:
+        description: "백필 시작일 YYYY-MM-DD (선택)"
+        default: ""
+      end:
+        description: "백필 종료일 YYYY-MM-DD (선택)"
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: collect-results
+  cancel-in-progress: false
+
+jobs:
+  results:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'requirements.txt'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 개찰결과 수집
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          G2B_SERVICE_KEY: ${{ secrets.G2B_SERVICE_KEY }}
+        run: |
+          if [ -n "${{ github.event.inputs.start }}" ] && [ -n "${{ github.event.inputs.end }}" ]; then
+            python -m scripts.collect_results --start "${{ github.event.inputs.start }}" --end "${{ github.event.inputs.end }}"
+          else
+            python -m scripts.collect_results --days "${{ github.event.inputs.days || '3' }}"
+          fi
