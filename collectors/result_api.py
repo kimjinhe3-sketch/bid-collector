@@ -72,6 +72,11 @@ def fetch_day(service_key: str, day: date, bsns_div: str,
         logger.warning("result_api %s div=%s API 오류: %s %s", d, bsns_div,
                        h.get("resultCode"), h.get("resultMsg"))
         return rows
+    if "response" not in first:
+        # 표준 봉투가 아님 — 쿼터 초과(LIMITED...) 등. 조용한 0건 방지용 원문 로깅
+        logger.warning("result_api %s div=%s 비표준 응답(쿼터 초과 의심): %s",
+                       d, bsns_div, str(first)[:200])
+        return rows
     total, items = _extract_items(first)
     rows.extend(items)
     pages = min(math.ceil(total / PAGE_SIZE), MAX_PAGES_PER_DAY)
