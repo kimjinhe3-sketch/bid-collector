@@ -100,7 +100,16 @@ def run(dry_run: bool = False, test_only: bool = False) -> int:
     print("[digest-outlook] 빌드 시작")
     data = digest_v2.build_digest_data()
     blocks = digest_v2.build_blocks(data)
-    subject = digest_v2.subject_line(data)
+    # 최근 발송 헤드라인 반복 방지 (최근 3회분 bid_no·제목 제외)
+    import json as _json
+    state_path = os.path.join(ROOT, "data", "digest_state.json")
+    try:
+        state = _json.load(open(state_path, encoding="utf-8"))
+    except Exception:
+        state = {"headlines": []}
+    recent = state.get("headlines", [])[-3:]
+    exclude = {x for h in recent for x in (h.get("bid_no"), h.get("title")) if x}
+    subject, headline = digest_v2.subject_line(data, exclude=exclude)
     print(f"[digest-outlook] subject: {subject}")
     print(f"[digest-outlook] counts: {data['counts']}")
 
@@ -140,6 +149,12 @@ def run(dry_run: bool = False, test_only: bool = False) -> int:
 
     if not test_only:
         mark_sent(sent_emails)
+        if headline and sent > 0:  # 정식 발송 성공 시에만 헤드라인 이력 기록
+            state.setdefault("headlines", []).append(
+                {"date": data["today"], "bid_no": headline["bid_no"], "title": headline["title"]})
+            state["headlines"] = state["headlines"][-10:]
+            os.makedirs(os.path.dirname(state_path), exist_ok=True)
+            _json.dump(state, open(state_path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print(f"[digest-outlook] sent={sent}/{len(subs)}")
     return 0 if sent == len(subs) else 1
 

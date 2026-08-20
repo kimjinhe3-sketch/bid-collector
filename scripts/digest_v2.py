@@ -264,7 +264,19 @@ def build_digest_data(today: date | None = None) -> dict:
         return cands[0][1] if cands else None
 
     def brief(r):
-        return {"title": r["title"], "price_eok": round((r.get("estimated_price") or 0) / EOK, 1)}
+        return {"bid_no": r["bid_no"], "title": r["title"],
+                "price_eok": round((r.get("estimated_price") or 0) / EOK, 1)}
+
+    def pick_list(cands, limit=5):
+        """헤드라인 후보 상위 N (그외·해외 제외 우선순위 유지)."""
+        out = []
+        for strict in (True, False):
+            for g, r in cands:
+                if headline_ok(g, r, strict) and r["bid_no"] not in {x["bid_no"] for x in out}:
+                    out.append(brief(r))
+                    if len(out) >= limit:
+                        return out
+        return out
 
     news_top = pick_top(news_all)
     closings_top = pick_top(closings_all)
@@ -277,6 +289,8 @@ def build_digest_data(today: date | None = None) -> dict:
             "new_total": len(news_all), "closing_total": len(closings_all),
             "new_top": brief(news_top) if news_top else None,
             "closing_top": brief(closings_top) if closings_top else None,
+            "new_cands": pick_list(news_all),
+            "closing_cands": pick_list(closings_all),
         },
     }
 
@@ -487,19 +501,37 @@ def build_blocks(data: dict) -> list[dict]:
 
 
 # ── 제목 (A안) ────────────────────────────────────────────
-def subject_line(data: dict) -> str:
+def subject_line(data: dict, exclude: set | None = None) -> tuple[str, dict | None]:
+    """A안 제목 조립. exclude = 최근 발송에 쓴 헤드라인 (bid_no·제목) — 반복 방지.
+
+    반환: (제목, 선택된 헤드라인 후보 dict | None)
+    """
     d = date.fromisoformat(data["today"])
     dstr = f"{d.month}/{d.day}"
     meta = data["meta"]
     n_cl = meta.get("closing_total") or 0
-    top_n, top_c = meta.get("new_top"), meta.get("closing_top")
-    if top_n:
-        head = f"{_trunc(top_n['title'], 14)} {top_n['price_eok']:,.0f}억 신규"
-    elif top_c:
-        head = f"{_trunc(top_c['title'], 14)} {top_c['price_eok']:,.0f}억 D-1"
+    exclude = exclude or set()
+
+    def fresh(cands):
+        for c in cands or []:
+            if c["bid_no"] not in exclude and c["title"] not in exclude:
+                return c
+        return None
+
+    pick = fresh(meta.get("new_cands"))
+    suffix = "신규"
+    if pick is None:
+        pick = fresh(meta.get("closing_cands"))
+        suffix = "D-1"
+    if pick is None:  # 전부 최근 사용됨 → 반복 허용 (빈 제목보단 낫다)
+        pick = (meta.get("new_cands") or meta.get("closing_cands") or [None])[0]
+        suffix = "신규" if meta.get("new_cands") else "D-1"
+
+    if pick:
+        head = f"{_trunc(pick['title'], 14)} {pick['price_eok']:,.0f}억 {suffix}"
     else:
         head = "관심분야 진행 현황"
-    return f"입찰 {dstr} | {head} · 마감임박 {n_cl}건"
+    return f"입찰 {dstr} | {head} · 마감임박 {n_cl}건", pick
 
 
 # ── 이미지 렌더 (playwright) ───────────────────────────────

@@ -82,7 +82,7 @@ def run(dry_run: bool = False, test_only: bool = False) -> int:
     print("[send_alerts] v2 다이제스트 빌드 시작")
     data = digest_v2.build_digest_data()
     blocks = digest_v2.build_blocks(data)
-    subject = digest_v2.subject_line(data)
+    subject, _headline = digest_v2.subject_line(data)
     print(f"[send_alerts] subject: {subject}")
     print(f"[send_alerts] counts: {data['counts']}")
 
