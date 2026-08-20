@@ -556,7 +556,7 @@ def render_blocks(blocks: list[dict]) -> dict[str, bytes] | None:
     footer_html = (
         f'<div style="font-family:{FONT};font-size:12px;color:#8592a6;line-height:1.7;'
         f'text-align:center;padding-top:2px;">'
-        f'공공입찰 수집 시스템 · 월·수·금 오전 8시 발송 · 대시보드 바로가기 &#8594;</div>')
+        f'공공입찰 수집 시스템 · 화·금 오전 8시 발송 · 대시보드 바로가기 &#8594;</div>')
 
     try:
         images: dict[str, bytes] = {}
@@ -592,7 +592,7 @@ def _footer(unsubscribe_token: str) -> str:
     unsub = f"{SITE_URL}/unsubscribe?token={quote(unsubscribe_token)}"
     return (f'<tr><td align="center" style="padding:2px 0 8px;">'
             f'<div style="font-family:{FONT};font-size:12px;color:#8592a6;line-height:1.7;">'
-            f'공공입찰 수집 시스템 · 월·수·금 오전 8시 발송 · '
+            f'공공입찰 수집 시스템 · 화·금 오전 8시 발송 · '
             f'<a href="{SITE_BIDS}" style="color:#8592a6;">대시보드</a> · '
             f'<a href="{unsub}" style="color:#8592a6;">구독 해지</a></div></td></tr>')
 
