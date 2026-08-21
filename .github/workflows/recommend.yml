@@ -1,11 +1,16 @@
 name: Recommend (투찰 추천 갱신)
 
 # P1 추천 엔진 — bid_results 학습 → 진행중 공고 추천 계산 → bid_recommendations 캐시.
-# 개찰결과 수집(20:00) 후 20:40 에 갱신. API 호출 없음(DB 내부 연산만).
+# 트리거: 개찰결과 수집 "완료 후" 자동 연쇄 (workflow_run) — 고정 시각 방식은
+# 수집이 1시간+ 걸리며 채점이 빈 테이블을 먼저 읽는 레이스가 있었음 (2026-08-21 수정).
+# 23:30 KST cron 은 연쇄 누락 대비 안전망 (채점·재계산 모두 멱등).
 
 on:
+  workflow_run:
+    workflows: ["Collect Results (개찰결과)"]
+    types: [completed]
   schedule:
-    - cron: '40 11 * * 1-5'   # 20:40 KST 평일
+    - cron: '30 14 * * 1-5'   # 23:30 KST 평일 — 안전망
   workflow_dispatch:
 
 permissions:
