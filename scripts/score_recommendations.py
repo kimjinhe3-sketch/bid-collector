@@ -43,16 +43,20 @@ ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS outcome_v2 TEXT;           -
 -- 실행 순서 무관 보장: 참조하는 bid_recommendations v2 컬럼도 여기서 멱등 생성
 ALTER TABLE bid_recommendations ADD COLUMN IF NOT EXISTS rec_bid_amount_v2 BIGINT;
 ALTER TABLE bid_recommendations ADD COLUMN IF NOT EXISTS expected_sajeong_v2 NUMERIC(8,4);
+-- 리뷰보드 표시·필터용: 사업명/발주처/관심그룹 (2026-08-21)
+ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS title TEXT;
+ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS org_name TEXT;
+ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS grp TEXT;  -- 관심그룹명 / '-'=비매칭
 """
 
 # 채점: 개찰결과 중 적격심사 + 추천 캐시가 존재하고 아직 채점 안 된 건
 SCORE_SQL = """
 INSERT INTO bid_rec_scores
-  (bid_no, rec_bid_rate, est_lower_rate, confidence,
+  (bid_no, title, org_name, rec_bid_rate, est_lower_rate, confidence,
    actual_win_rate, actual_lower, actual_sajeong,
    eff_rate, outcome, eff_rate_v2, outcome_v2,
    diff, lower_hit, open_result_date)
-SELECT r.bid_no,
+SELECT r.bid_no, r.title, r.org_name,
        c.rec_bid_rate, c.est_lower_rate, c.confidence,
        r.win_bid_rate, r.win_lower_rate, r.sajeong_rate,
        e.eff, 
@@ -108,6 +112,33 @@ def main() -> int:
             cur.execute(SCHEMA_SQL)
             cur.execute(SCORE_SQL)
             new = cur.rowcount
+            # 사업명 소급 (컬럼 추가 이전 채점분)
+            cur.execute(
+                "UPDATE bid_rec_scores s SET title = r.title, org_name = r.org_name "
+                "FROM bid_results r WHERE r.bid_no = s.bid_no AND s.title IS NULL")
+            # 관심그룹 분류 — digest_v2 의 그룹 정의 그대로 (포함·제외·발주처 제외)
+            from scripts.digest_v2 import GROUPS as _G, _matches as _m
+
+            def _grp(title, org):
+                for gname, kws, g_exc, g_org_exc in _G:
+                    t = title or ""
+                    if not _m(t, kws):
+                        continue
+                    if g_exc and _m(t, g_exc):
+                        continue
+                    if g_org_exc and _m(org or "", g_org_exc):
+                        continue
+                    return gname
+                return "-"
+
+            cur.execute("SELECT id, title, org_name FROM bid_rec_scores WHERE grp IS NULL")
+            pend = cur.fetchall()
+            if pend:
+                import psycopg2.extras as _ex
+                _ex.execute_batch(
+                    cur, "UPDATE bid_rec_scores SET grp = %s WHERE id = %s",
+                    [(_grp(r["title"], r["org_name"]), r["id"]) for r in pend], page_size=200)
+                print(f"[score] 그룹 분류 {len(pend)}건")
             conn.commit()
             for days, label in ((7, "최근 7일"), (30, "최근 30일")):
                 cur.execute(SUMMARY_SQL % days)
