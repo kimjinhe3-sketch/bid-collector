@@ -88,7 +88,7 @@ SELECT COUNT(*) AS n,
        ROUND(AVG(CASE WHEN ABS(diff) <= 0.3   THEN 100.0 ELSE 0 END), 1) AS hit03_pct,
        ROUND(AVG(CASE WHEN lower_hit          THEN 100.0 ELSE 0 END), 1) AS lower_hit_pct,
        COUNT(outcome_v2) AS n_v2,
-       ROUND(AVG(CASE WHEN outcome_v2 = 'win' THEN 100.0 END), 1) AS win_v2_pct
+       ROUND(AVG(CASE WHEN outcome_v2 = 'win' THEN 100.0 WHEN outcome_v2 IS NOT NULL THEN 0 END), 1) AS win_v2_pct
 FROM bid_rec_scores
 WHERE open_result_date >= to_char(NOW() - INTERVAL '%s days', 'YYYY-MM-DD')
 """
