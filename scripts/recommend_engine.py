@@ -162,6 +162,15 @@ class SegmentBook:
 BID_TYPE_MAP = {"물품": "물품", "공사": "공사", "용역": "용역"}
 
 
+def load_seg_feedback(cur) -> dict[str, str]:
+    """세그먼트 피드백 (score_recommendations 산출) — seg_key → flag."""
+    try:
+        cur.execute("SELECT seg_key, flag FROM bid_seg_feedback WHERE flag != 'ok'")
+        return {r["seg_key"]: r["flag"] for r in cur.fetchall()}
+    except Exception:
+        return {}
+
+
 def load_active_bids(cur) -> list[dict]:
     today = (datetime.now(timezone.utc) + timedelta(hours=9)).date().isoformat()
     cur.execute(
@@ -175,7 +184,7 @@ def load_active_bids(cur) -> list[dict]:
     return [dict(r) for r in cur.fetchall()]
 
 
-def recommend(bid: dict, book: SegmentBook) -> dict | None:
+def recommend(bid: dict, book: SegmentBook, feedback: dict[str, str] | None = None) -> dict | None:
     div = BID_TYPE_MAP.get(bid["bid_type"])
     if not div:
         return None
@@ -227,6 +236,17 @@ def recommend(bid: dict, book: SegmentBook) -> dict | None:
         conf = "low"
     if actual_lower and conf != "high":
         conf = "high" if level in ("발주기관", "기관유형") else "medium"
+
+    # ── 세그먼트 피드백 반영 (실전 채점 기반 자동 보완 장치, 2026-08-21) ──
+    # unreliable(|오차|중앙>3%p): 추천 보류 / under_risk·margin_low: 신뢰도 강등 + 근거 표기
+    fb_flag = None
+    if feedback:
+        seg_key = f"{div}|{level}|{otype}"
+        fb_flag = feedback.get(seg_key)
+        if fb_flag == "unreliable":
+            return None
+        if fb_flag in ("under_risk", "margin_low"):
+            conf = {"high": "medium", "medium": "low", "low": "low"}[conf]
     return {
         "source": bid["source"], "bid_no": bid["bid_no"],
         "rec_bid_rate": rec_rate, "rec_bid_amount": rec_amount,
@@ -239,6 +259,7 @@ def recommend(bid: dict, book: SegmentBook) -> dict | None:
             "lower_src": "공고" if actual_lower else "추정",
             "base_src": "공고" if actual_base else "추정",
             "lower_mode_share": round(lower_conf, 3), "lower_n": lower_n,
+            "seg_feedback": fb_flag,
             "base_ratio": round(ratio, 4), "band": band, "org_type": otype,
             "margin_p25_p50_p75": [round(_q(ms, p), 3) for p in (0.25, 0.5, 0.75)],
             "sajeong_iqr": [round(_q(sjs, p), 3) for p in (0.25, 0.75)] if len(sjs) >= 4 else None,
@@ -259,9 +280,12 @@ def main() -> int:
                 return 0
             book = SegmentBook(results)
             bids = load_active_bids(cur)
+            feedback = load_seg_feedback(cur)
+            if feedback:
+                print(f"[recommend_engine] 세그먼트 피드백 반영: {len(feedback)}건 {feedback}")
             logger.info("학습 %d건 / 대상 공고 %d건", len(results), len(bids))
 
-            recs = [r for r in (recommend(b, book) for b in bids) if r]
+            recs = [r for r in (recommend(b, book, feedback) for b in bids) if r]
             cols = ("source", "bid_no", "rec_bid_rate", "rec_bid_amount",
                     "rec_bid_amount_v2", "expected_sajeong_v2", "est_lower_rate",
                     "expected_sajeong", "margin", "confidence", "sample_count", "rationale")

@@ -47,16 +47,33 @@ ALTER TABLE bid_recommendations ADD COLUMN IF NOT EXISTS expected_sajeong_v2 NUM
 ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS title TEXT;
 ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS org_name TEXT;
 ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS grp TEXT;  -- 관심그룹명 / '-'=비매칭
+-- 세그먼트 피드백 장치 (2026-08-21): 어떤 분류체계의 추천이었는지 기록
+ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS seg_level TEXT;   -- 발주기관/기관유형/공종x하한율/공종전체
+ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS org_type TEXT;
+ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS div TEXT;         -- 공종
+-- 문제 세그먼트 자동 감지 결과 → 추천 엔진이 읽어 강등/보류
+CREATE TABLE IF NOT EXISTS bid_seg_feedback (
+    seg_key     TEXT PRIMARY KEY,     -- 공종|세그레벨|기관유형
+    n           INT,
+    under_pct   NUMERIC(5,1),
+    beaten_pct  NUMERIC(5,1),
+    med_absdiff NUMERIC(8,4),
+    med_diff    NUMERIC(8,4),
+    flag        TEXT,                 -- unreliable / under_risk / margin_low / ok
+    updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
 """
 
 # 채점: 개찰결과 중 적격심사 + 추천 캐시가 존재하고 아직 채점 안 된 건
 SCORE_SQL = """
 INSERT INTO bid_rec_scores
-  (bid_no, title, org_name, rec_bid_rate, est_lower_rate, confidence,
+  (bid_no, title, org_name, seg_level, org_type, div,
+   rec_bid_rate, est_lower_rate, confidence,
    actual_win_rate, actual_lower, actual_sajeong,
    eff_rate, outcome, eff_rate_v2, outcome_v2,
    diff, lower_hit, open_result_date)
 SELECT r.bid_no, r.title, r.org_name,
+       c.rationale->>'segment', c.rationale->>'org_type', r.bsns_div,
        c.rec_bid_rate, c.est_lower_rate, c.confidence,
        r.win_bid_rate, r.win_lower_rate, r.sajeong_rate,
        e.eff, 
@@ -139,6 +156,47 @@ def main() -> int:
                     cur, "UPDATE bid_rec_scores SET grp = %s WHERE id = %s",
                     [(_grp(r["title"], r["org_name"]), r["id"]) for r in pend], page_size=200)
                 print(f"[score] 그룹 분류 {len(pend)}건")
+            # 세그먼트 소급 (컬럼 추가 이전 채점분)
+            cur.execute(
+                "UPDATE bid_rec_scores s SET seg_level = c.rationale->>'segment', "
+                "  org_type = c.rationale->>'org_type' "
+                "FROM bid_recommendations c WHERE c.bid_no = s.bid_no AND s.seg_level IS NULL")
+            cur.execute(
+                "UPDATE bid_rec_scores s SET div = r.bsns_div "
+                "FROM bid_results r WHERE r.bid_no = s.bid_no AND s.div IS NULL")
+            # ── 세그먼트 피드백: 최근 30일 성적으로 문제 분류체계 자동 감지 ──
+            # 판정(표본 n>=10): 미달>50% → under_risk / 밀림>60% & 양수오차중앙>0.5 → margin_low
+            #                 / |오차|중앙>3%p → unreliable(추천 보류) / 그 외 ok
+            cur.execute("""
+                INSERT INTO bid_seg_feedback
+                  (seg_key, n, under_pct, beaten_pct, med_absdiff, med_diff, flag, updated_at)
+                SELECT seg_key, n, under_pct, beaten_pct, med_absdiff, med_diff,
+                       CASE WHEN med_absdiff > 3 THEN 'unreliable'
+                            WHEN under_pct > 50 THEN 'under_risk'
+                            WHEN beaten_pct > 60 AND med_diff > 0.5 THEN 'margin_low'
+                            ELSE 'ok' END,
+                       NOW()
+                FROM (
+                  SELECT COALESCE(div,'?') || '|' || COALESCE(seg_level,'?') || '|' || COALESCE(org_type,'?') AS seg_key,
+                         COUNT(*) AS n,
+                         ROUND(AVG(CASE WHEN outcome='under' THEN 100.0 ELSE 0 END),1) AS under_pct,
+                         ROUND(AVG(CASE WHEN outcome='beaten' THEN 100.0 ELSE 0 END),1) AS beaten_pct,
+                         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ABS(diff)) AS med_absdiff,
+                         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY diff) AS med_diff
+                  FROM bid_rec_scores
+                  WHERE open_result_date >= to_char(NOW() - INTERVAL '30 days', 'YYYY-MM-DD')
+                  GROUP BY 1
+                ) t
+                WHERE n >= 10
+                ON CONFLICT (seg_key) DO UPDATE SET
+                  n=EXCLUDED.n, under_pct=EXCLUDED.under_pct, beaten_pct=EXCLUDED.beaten_pct,
+                  med_absdiff=EXCLUDED.med_absdiff, med_diff=EXCLUDED.med_diff,
+                  flag=EXCLUDED.flag, updated_at=NOW()
+            """)
+            cur.execute("SELECT seg_key, n, flag, med_absdiff FROM bid_seg_feedback WHERE flag != 'ok' ORDER BY n DESC")
+            bad = cur.fetchall()
+            for b in bad:
+                print(f"[score] ⚠ 문제 세그먼트: {b['seg_key']} n={b['n']} flag={b['flag']} |오차|중앙={b['med_absdiff']}")
             conn.commit()
             for days, label in ((7, "최근 7일"), (30, "최근 30일")):
                 cur.execute(SUMMARY_SQL % days)
