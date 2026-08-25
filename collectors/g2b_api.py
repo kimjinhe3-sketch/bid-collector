@@ -87,6 +87,8 @@ def _normalize(item: dict, source: str, bid_type: str) -> dict | None:
         "detail_url": item.get("bidNtceDtlUrl") or item.get("bidNtceUrl"),
         # 낙찰하한율 — 공고 응답에 실제값 포함 (AI 추천 정확도용, 2026-08-19)
         "win_lower_rate": _safe_float(item.get("sucsfbidLwltRate")),
+        # 낙찰자 결정방식 (적격심사제/협상/최저가/수의 등) — 추천 대상 판별용 (2026-08-21)
+        "decision_method": item.get("sucsfbidMthdNm"),
     }
 
 

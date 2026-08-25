@@ -57,6 +57,7 @@ ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS win_lower_rate NUMERIC(8,
 ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS base_price BIGINT;
 ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS prc_rng_bgn NUMERIC(6,2);
 ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS prc_rng_end NUMERIC(6,2);
+ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS decision_method TEXT;
 -- 웹 정렬용: AI 추천 신뢰도 랭크 (high=3/medium=2/low=1, 추천 없음=NULL)
 ALTER TABLE bid_announcements ADD COLUMN IF NOT EXISTS rec_rank SMALLINT;
 """
@@ -165,7 +166,7 @@ def load_active_bids(cur) -> list[dict]:
     today = (datetime.now(timezone.utc) + timedelta(hours=9)).date().isoformat()
     cur.execute(
         "SELECT source, bid_no, title, org_name, bid_type, estimated_price, "
-        "       win_lower_rate, base_price "
+        "       win_lower_rate, base_price, decision_method "
         "FROM bid_announcements "
         "WHERE source LIKE 'g2b_api%%' AND estimated_price > 0 "
         "  AND bid_type = ANY(%s) "
@@ -177,6 +178,15 @@ def load_active_bids(cur) -> list[dict]:
 def recommend(bid: dict, book: SegmentBook) -> dict | None:
     div = BID_TYPE_MAP.get(bid["bid_type"])
     if not div:
+        return None
+    # 낙찰방식 게이트 — 우리 모델은 "하한선 위 최저가" 게임(적격심사제)에만 유효.
+    # 협상·수의·최저가·규격가격동시 등은 게임 규칙이 달라 추천하지 않는다 (2026-08-21).
+    dm = bid.get("decision_method")
+    if dm:
+        if "적격" not in dm:
+            return None
+    elif not bid.get("win_lower_rate"):
+        # 방식 미상(구수집분)이면 공고 하한율 존재를 적격심사형 증거로 요구
         return None
     presmpt = bid["estimated_price"]
     ratio = book.ratio(div)
