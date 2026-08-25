@@ -5,6 +5,8 @@
   1. 낙찰하한율 추정: (공종, 금액대) 과거 최빈값 — 확신도(최빈 비중) 기록
   2. 예상 사정율:    세그먼트 계층 폴백 중앙값
   3. 마진:           세그먼트 마진 p25 (하한 대비 낙찰 여유의 하위 25%)
+     + 마진 다이얼(B안): 기관 이력상 약경쟁(참가 중앙 ≤6개사) 예측 시
+       이력 낙찰마진 중앙의 절반으로 상향 — 저가 수주 방지 (상한 +3%p)
   4. 추천 투찰률 = 하한율 + 마진 (예정가격 대비 %)
      추천 투찰금액 = 기초금액추정(추정가격×공종별 배율) × 사정율 × 투찰률
 
@@ -84,7 +86,7 @@ def _conn():
 def load_results(cur) -> list[dict]:
     cur.execute(
         "SELECT title, org_name, bsns_div, base_price, presmpt_price, sajeong_rate,"
-        "       win_lower_rate, win_bid_rate FROM bid_results "
+        "       win_lower_rate, win_bid_rate, bidder_count FROM bid_results "
         "WHERE decision_method LIKE '%적격%' AND win_lower_rate IS NOT NULL "
         "  AND win_bid_rate IS NOT NULL")
     out = []
@@ -111,6 +113,9 @@ class SegmentBook:
         self.lower_by_div_band = defaultdict(list)
         self.ratio_by_div = defaultdict(list)
         self.sj_by_org = defaultdict(list)   # ③ 섀도우: 발주기관별 사정율
+        # 마진 다이얼용 경쟁 이력 — (참가업체수, 낙찰마진) (2026-08-25 B안)
+        self.comp_by_ob = defaultdict(list)  # (기관, 공종, 금액밴드)
+        self.comp_by_od = defaultdict(list)  # (기관, 공종)
         for x in results:
             div = x["bsns_div"]
             self.by_org[(x["org_name"], div)].append(x)
@@ -118,6 +123,8 @@ class SegmentBook:
             self.by_band[(div, round(x["_lw"], 3))].append(x)
             self.by_div[div].append(x)
             self.lower_by_div_band[(div, x["_band"])].append(round(x["_lw"], 3))
+            self.comp_by_ob[(x["org_name"], div, x["_band"])].append((x.get("bidder_count"), x["_m"]))
+            self.comp_by_od[(x["org_name"], div)].append((x.get("bidder_count"), x["_m"]))
             if x["_sj"] is not None:
                 self.sj_by_org[x["org_name"]].append(x["_sj"])
             if x["base_price"] and x["presmpt_price"]:
@@ -157,6 +164,20 @@ class SegmentBook:
     def ratio(self, div: str) -> float:
         vals = self.ratio_by_div.get(div) or []
         return statistics.median(vals) if len(vals) >= 5 else 1.1  # 통상 부가세 배율
+
+    def predict_weak_comp(self, org: str, div: str, band: str):
+        """마진 다이얼(B안) 경쟁 예측 — 기관x공종x밴드(n>=2) 우선, 기관x공종(n>=3) 폴백.
+        과거 참가업체수 중앙 <=6 이면 약경쟁 예측 → (이력 낙찰마진들, 참가수중앙, 표본수).
+        백테스트(2026-08-25, 2512건): 정밀도 70%, 발동건 기대마진 0.55→1.21%p."""
+        for hist, key, min_n in ((self.comp_by_ob, (org, div, band), 2),
+                                 (self.comp_by_od, (org, div), 3)):
+            past = hist.get(key) or []
+            if len(past) >= min_n:
+                bcs = [b for b, _ in past if b]
+                if bcs and statistics.median(bcs) <= 6:
+                    return [m for _, m in past], statistics.median(bcs), len(past)
+                return None  # 이력 있고 경쟁 치열 → 폴백 안 내려감
+        return None
 
 
 BID_TYPE_MAP = {"물품": "물품", "공사": "공사", "용역": "용역"}
@@ -219,6 +240,20 @@ def recommend(bid: dict, book: SegmentBook, feedback: dict[str, str] | None = No
     ms = [x["_m"] for x in items]
     exp_sj = statistics.median(sjs) if sjs else 100.0
     margin = _q(ms, 0.25)
+
+    # ── 마진 다이얼 (B안, 2026-08-25): 경쟁 약함 예측 시 저가 수주 방지 ──
+    # 하한 근처(p25) 안전빵은 경쟁 치열 공고에선 정답이지만, 참가 1~3개사
+    # 공고에선 낙찰자보다 3~4%p 낮게 써 수익을 버림(실측 남긴폭 중앙 3.8%p).
+    # 발동 시 이력 낙찰마진 중앙의 절반 지점으로 상향 (상한 +3%p).
+    dial = None
+    weak = book.predict_weak_comp(bid.get("org_name") or "", div, band)
+    if weak:
+        hist_ms, med_bc, hist_n = weak
+        margin_base = margin
+        margin = round(min(max(margin, 0.5 * statistics.median(hist_ms)), margin + 3.0), 4)
+        if margin > margin_base:
+            dial = {"pred": "약경쟁", "med_bidders": med_bc, "hist_n": hist_n,
+                    "margin_base": round(margin_base, 4)}
     rec_rate = round(lower + margin, 4)
     rec_amount = int(base_est * (exp_sj / 100) * (rec_rate / 100) // 10 * 10)
 
@@ -259,7 +294,7 @@ def recommend(bid: dict, book: SegmentBook, feedback: dict[str, str] | None = No
             "lower_src": "공고" if actual_lower else "추정",
             "base_src": "공고" if actual_base else "추정",
             "lower_mode_share": round(lower_conf, 3), "lower_n": lower_n,
-            "seg_feedback": fb_flag,
+            "seg_feedback": fb_flag, "dial": dial,
             "base_ratio": round(ratio, 4), "band": band, "org_type": otype,
             "margin_p25_p50_p75": [round(_q(ms, p), 3) for p in (0.25, 0.5, 0.75)],
             "sajeong_iqr": [round(_q(sjs, p), 3) for p in (0.25, 0.75)] if len(sjs) >= 4 else None,
@@ -305,8 +340,10 @@ def main() -> int:
                 "WHERE a.bid_no = sub.bid_no AND a.source LIKE 'g2b_api%%'")
         conn.commit()
         by_conf = Counter(r["confidence"] for r in recs)
+        n_dial = sum(1 for r in recs if '"pred": "약경쟁"' in r["rationale"])
         print(f"[recommend_engine] 추천 {len(recs)}건 저장 (high {by_conf.get('high',0)} / "
-              f"medium {by_conf.get('medium',0)} / low {by_conf.get('low',0)})")
+              f"medium {by_conf.get('medium',0)} / low {by_conf.get('low',0)}) "
+              f"| 마진 다이얼 발동 {n_dial}건")
         return 0
     finally:
         conn.close()
