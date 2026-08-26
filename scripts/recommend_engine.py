@@ -6,6 +6,8 @@
   2. 예상 사정율:    세그먼트 계층 폴백 중앙값
   3. 마진:           세그먼트 마진 최빈 구간(0.005%p 빈) — 낙찰자 밀집 지점 조준
      (2026-08-26 적중권률 목표화로 p25에서 교체. 백테스트: 적중권 4.4→6.5%)
+     + 저가 위험 게이트: 마진 산포(p90-최빈) > 1%p 면 추천 보류
+       (저가 수주 = 낙찰돼도 원가 리스크. 백테스트: 발행분 저가율 21→11%)
      + 마진 다이얼(B안): 기관 이력상 약경쟁(참가 중앙 ≤6개사) 예측 시
        이력 낙찰마진 중앙의 절반으로 상향 — 저가 수주 방지 (상한 +3%p)
   4. 추천 투찰률 = 하한율 + 마진 (예정가격 대비 %)
@@ -251,6 +253,15 @@ def recommend(bid: dict, book: SegmentBook, feedback: dict[str, str] | None = No
     sjs = [x["_sj"] for x in items if x["_sj"] is not None]
     ms = [x["_m"] for x in items]
     exp_sj = statistics.median(sjs) if sjs else 100.0
+
+    # ── 저가 위험 게이트 (2026-08-26): 저가 수주 = 낙찰돼도 원가 리스크 ──
+    # 세그먼트 낙찰 마진 산포(p90-최빈)가 넓으면 낙찰가 위치가 복불복이라
+    # 어떤 값을 내도 저가/고가 도박 (산포>3 구간 실측 저가율 38.8%).
+    # 이런 공고는 추천을 보류한다 — 백테스트: 저가율 21.4→11% 수준.
+    spread = _q(ms, 0.90) - _mode(ms)
+    if spread > 1.0:
+        return None
+
     margin = _mode(ms)  # 적중권률 조준 — p25(안전빵)에서 최빈(낙찰자 밀집 지점)으로 (2026-08-26)
 
     # ── 마진 다이얼 (B안, 2026-08-25): 경쟁 약함 예측 시 저가 수주 방지 ──
@@ -306,7 +317,7 @@ def recommend(bid: dict, book: SegmentBook, feedback: dict[str, str] | None = No
             "lower_src": "공고" if actual_lower else "추정",
             "base_src": "공고" if actual_base else "추정",
             "lower_mode_share": round(lower_conf, 3), "lower_n": lower_n,
-            "seg_feedback": fb_flag, "dial": dial,
+            "seg_feedback": fb_flag, "dial": dial, "spread": round(spread, 3),
             "base_ratio": round(ratio, 4), "band": band, "org_type": otype,
             "margin_p25_p50_p75": [round(_q(ms, p), 3) for p in (0.25, 0.5, 0.75)],
             "sajeong_iqr": [round(_q(sjs, p), 3) for p in (0.25, 0.75)] if len(sjs) >= 4 else None,
