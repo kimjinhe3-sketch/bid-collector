@@ -93,17 +93,32 @@ def _fetch_pg(url: str) -> list[dict]:
 
 
 def _fetch_rest() -> list[dict]:
-    """로컬 테스트용 — Supabase REST (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY)."""
+    """로컬 발송 경로 — Supabase REST (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY).
+
+    절전 해제 직후 스케줄러가 소급 실행되면 네트워크가 수 분간 안 붙어 SSL
+    EOF 로 죽는 사례가 있었음(2026-08-25 미발송) → 네트워크 오류는 60초
+    간격 최대 5회 재시도로 흡수한다.
+    """
+    import time as _time
     import requests
     base = os.environ["SUPABASE_URL"].rstrip("/")
     key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
     hdr = {"apikey": key, "Authorization": f"Bearer {key}"}
     rows, offset = [], 0
     while True:
-        r = requests.get(f"{base}/rest/v1/bid_announcements",
-                         headers={**hdr, "Range-Unit": "items", "Range": f"{offset}-{offset + 999}"},
-                         params={"select": COLS, "order": "id.asc"}, timeout=30)
-        r.raise_for_status()
+        for attempt in range(5):
+            try:
+                r = requests.get(f"{base}/rest/v1/bid_announcements",
+                                 headers={**hdr, "Range-Unit": "items", "Range": f"{offset}-{offset + 999}"},
+                                 params={"select": COLS, "order": "id.asc"}, timeout=30)
+                r.raise_for_status()
+                break
+            except requests.RequestException as e:
+                if attempt == 4:
+                    raise
+                print(f"[digest] REST 연결 실패({e.__class__.__name__}) — 60초 후 재시도 {attempt + 1}/4",
+                      file=sys.stderr)
+                _time.sleep(60)
         chunk = r.json()
         rows.extend(chunk)
         if len(chunk) < 1000:
