@@ -104,8 +104,11 @@ WHERE r.decision_method LIKE '%적격%'
 ON CONFLICT (bid_no) DO NOTHING
 """
 
+# 지향점(2026-08-26): 적중권률(|오차|<=0.005%p)↑ · 저가율(오차<-0.5%p)↓ 이 북극성 지표
 SUMMARY_SQL = """
 SELECT COUNT(*) AS n,
+       ROUND(AVG(CASE WHEN ABS(diff) <= 0.005 THEN 100.0 ELSE 0 END), 1) AS hitzone_pct,
+       ROUND(AVG(CASE WHEN diff < -0.5        THEN 100.0 ELSE 0 END), 1) AS low_pct,
        ROUND(AVG(CASE WHEN outcome = 'win'    THEN 100.0 ELSE 0 END), 1) AS win_pct,
        ROUND(AVG(CASE WHEN outcome = 'under'  THEN 100.0 ELSE 0 END), 1) AS under_pct,
        ROUND(AVG(CASE WHEN outcome = 'beaten' THEN 100.0 ELSE 0 END), 1) AS beaten_pct,
@@ -175,13 +178,16 @@ def main() -> int:
                 "UPDATE bid_rec_scores s SET div = r.bsns_div "
                 "FROM bid_results r WHERE r.bid_no = s.bid_no AND s.div IS NULL")
             # ── 세그먼트 피드백: 최근 30일 성적으로 문제 분류체계 자동 감지 ──
-            # 판정(표본 n>=10): 미달>50% → under_risk / 밀림>60% & 양수오차중앙>0.5 → margin_low
-            #                 / |오차|중앙>3%p → unreliable(추천 보류) / 그 외 ok
+            # 지향점(2026-08-26 확정): 적중권률↑ · 저가율↓ (비대칭 — 저가가 더 위험)
+            # 판정(표본 n>=10): |오차|중앙>3%p → unreliable(추천 보류)
+            #   / 저가율(오차<-0.5)>30% → low_risk(강등) / 미달>50% → under_risk
+            #   / 밀림>60% & 양수오차중앙>0.5 → margin_low / 그 외 ok
             cur.execute("""
                 INSERT INTO bid_seg_feedback
                   (seg_key, n, under_pct, beaten_pct, med_absdiff, med_diff, flag, updated_at)
                 SELECT seg_key, n, under_pct, beaten_pct, med_absdiff, med_diff,
                        CASE WHEN med_absdiff > 3 THEN 'unreliable'
+                            WHEN low_pct > 30 THEN 'low_risk'
                             WHEN under_pct > 50 THEN 'under_risk'
                             WHEN beaten_pct > 60 AND med_diff > 0.5 THEN 'margin_low'
                             ELSE 'ok' END,
@@ -191,6 +197,7 @@ def main() -> int:
                          COUNT(*) AS n,
                          ROUND(AVG(CASE WHEN outcome='under' THEN 100.0 ELSE 0 END),1) AS under_pct,
                          ROUND(AVG(CASE WHEN outcome='beaten' THEN 100.0 ELSE 0 END),1) AS beaten_pct,
+                         ROUND(AVG(CASE WHEN diff < -0.5 THEN 100.0 ELSE 0 END),1) AS low_pct,
                          PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ABS(diff)) AS med_absdiff,
                          PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY diff) AS med_diff
                   FROM bid_rec_scores
@@ -212,8 +219,9 @@ def main() -> int:
                 cur.execute(SUMMARY_SQL % days)
                 s = cur.fetchone()
                 if s and s["n"]:
-                    print(f"[score] {label}: n={s['n']}  낙찰권 {s['win_pct']}% / 미달 {s['under_pct']}% / "
-                          f"밀림 {s['beaten_pct']}% / ±0.3적중 {s['hit03_pct']}% / 하한율적중 {s['lower_hit_pct']}%"
+                    print(f"[score] {label}: n={s['n']}  ★적중권 {s['hitzone_pct']}% / ★저가 {s['low_pct']}% | "
+                          f"낙찰권 {s['win_pct']}% / 미달 {s['under_pct']}% / "
+                          f"밀림 {s['beaten_pct']}% / 하한율적중 {s['lower_hit_pct']}%"
                           + (f" | 섀도우(v2) n={s['n_v2']} 낙찰권 {s['win_v2_pct']}%" if s.get('n_v2') else ""))
         print(f"[score] 신규 채점 {new}건")
         return 0

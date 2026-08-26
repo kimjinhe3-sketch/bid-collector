@@ -296,14 +296,15 @@ def recommend(bid: dict, book: SegmentBook, feedback: dict[str, str] | None = No
         conf = "high" if level in ("발주기관", "기관유형") else "medium"
 
     # ── 세그먼트 피드백 반영 (실전 채점 기반 자동 보완 장치, 2026-08-21) ──
-    # unreliable(|오차|중앙>3%p): 추천 보류 / under_risk·margin_low: 신뢰도 강등 + 근거 표기
+    # unreliable(|오차|중앙>3%p): 추천 보류
+    # low_risk(저가율>30%, 2026-08-26)·under_risk·margin_low: 신뢰도 강등 + 근거 표기
     fb_flag = None
     if feedback:
         seg_key = f"{div}|{level}|{otype}"
         fb_flag = feedback.get(seg_key)
         if fb_flag == "unreliable":
             return None
-        if fb_flag in ("under_risk", "margin_low"):
+        if fb_flag in ("low_risk", "under_risk", "margin_low"):
             conf = {"high": "medium", "medium": "low", "low": "low"}[conf]
     return {
         "source": bid["source"], "bid_no": bid["bid_no"],
