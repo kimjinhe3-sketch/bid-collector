@@ -51,6 +51,9 @@ ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS grp TEXT;  -- 관심그룹�
 ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS seg_level TEXT;   -- 발주기관/기관유형/공종x하한율/공종전체
 ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS org_type TEXT;
 ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS div TEXT;         -- 공종
+-- 리뷰보드 금액 차이 표시용 (2026-08-26): 추천 투찰금액 vs 실제 낙찰금액
+ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS rec_bid_amount BIGINT;
+ALTER TABLE bid_rec_scores ADD COLUMN IF NOT EXISTS win_bid_amount BIGINT;
 -- 문제 세그먼트 자동 감지 결과 → 추천 엔진이 읽어 강등/보류
 CREATE TABLE IF NOT EXISTS bid_seg_feedback (
     seg_key     TEXT PRIMARY KEY,     -- 공종|세그레벨|기관유형
@@ -71,7 +74,7 @@ INSERT INTO bid_rec_scores
    rec_bid_rate, est_lower_rate, confidence,
    actual_win_rate, actual_lower, actual_sajeong,
    eff_rate, outcome, eff_rate_v2, outcome_v2,
-   diff, lower_hit, open_result_date)
+   diff, lower_hit, open_result_date, rec_bid_amount, win_bid_amount)
 SELECT r.bid_no, r.title, r.org_name,
        c.rationale->>'segment', c.rationale->>'org_type', r.bsns_div,
        c.rec_bid_rate, c.est_lower_rate, c.confidence,
@@ -87,7 +90,7 @@ SELECT r.bid_no, r.title, r.org_name,
             ELSE 'beaten' END,
        c.rec_bid_rate - r.win_bid_rate,
        ABS(c.est_lower_rate - r.win_lower_rate) < 0.001,
-       r.open_result_date
+       r.open_result_date, c.rec_bid_amount, r.win_bid_amount
 FROM bid_results r
 JOIN bid_recommendations c ON c.bid_no = r.bid_no
 CROSS JOIN LATERAL (
@@ -133,6 +136,13 @@ def main() -> int:
             cur.execute(
                 "UPDATE bid_rec_scores s SET title = r.title, org_name = r.org_name "
                 "FROM bid_results r WHERE r.bid_no = s.bid_no AND s.title IS NULL")
+            # 금액 소급 (2026-08-26 컬럼 추가 이전 채점분)
+            cur.execute(
+                "UPDATE bid_rec_scores s SET rec_bid_amount = c.rec_bid_amount, "
+                "       win_bid_amount = r.win_bid_amount "
+                "FROM bid_recommendations c, bid_results r "
+                "WHERE c.bid_no = s.bid_no AND r.bid_no = s.bid_no "
+                "  AND s.rec_bid_amount IS NULL")
             # 관심그룹 분류 — digest_v2 의 그룹 정의 그대로 (포함·제외·발주처 제외)
             from scripts.digest_v2 import GROUPS as _G, _matches as _m
 
