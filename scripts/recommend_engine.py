@@ -354,6 +354,17 @@ def main() -> int:
                    + ", ".join(f"{c}=EXCLUDED.{c}" for c in cols if c not in ("source", "bid_no"))
                    + ", computed_at=NOW()")
             psycopg2.extras.execute_batch(cur, sql, recs, page_size=200)
+            # 재평가에서 게이트(방식·저가위험·피드백)로 보류된 진행중 공고의
+            # 기존 추천은 삭제 — 웹에 낡은 추천이 남는 것 방지 (2026-08-26).
+            # 마감된 공고의 추천은 채점(join) 재료라 건드리지 않는다.
+            rec_nos = {r["bid_no"] for r in recs}
+            stale = [b["bid_no"] for b in bids if b["bid_no"] not in rec_nos]
+            if stale:
+                cur.execute("DELETE FROM bid_recommendations WHERE bid_no = ANY(%s)", (stale,))
+                cur.execute(
+                    "UPDATE bid_announcements SET rec_rank = NULL "
+                    "WHERE bid_no = ANY(%s) AND source LIKE 'g2b_api%%'", (stale,))
+                print(f"[recommend_engine] 게이트 보류 정리: 기존 추천 {cur.rowcount}건 회수")
             # 웹 "AI 추천" 정렬용 랭크를 공고 테이블에 동기화
             cur.execute(
                 "UPDATE bid_announcements a SET rec_rank = sub.rank "
