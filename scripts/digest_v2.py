@@ -546,7 +546,8 @@ def subject_line(data: dict, exclude: set | None = None) -> tuple[str, dict | No
         head = f"{_trunc(pick['title'], 14)} {pick['price_eok']:,.0f}억 {suffix}"
     else:
         head = "관심분야 진행 현황"
-    return f"입찰 {dstr} | {head} · 마감임박 {n_cl}건", pick
+    # "[공공입찰 정보]" 태그 — 사내 공지 관행 형태, 수신자 자동분류 규칙용 (2026-08-26 A안 확정)
+    return f"[공공입찰 정보] {dstr} | {head} · 마감임박 {n_cl}건", pick
 
 
 # ── 이미지 렌더 (playwright) ───────────────────────────────
