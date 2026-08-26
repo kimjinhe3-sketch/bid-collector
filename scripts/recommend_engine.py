@@ -4,7 +4,8 @@
 로직 (룰+통계, 설명가능):
   1. 낙찰하한율 추정: (공종, 금액대) 과거 최빈값 — 확신도(최빈 비중) 기록
   2. 예상 사정율:    세그먼트 계층 폴백 중앙값
-  3. 마진:           세그먼트 마진 p25 (하한 대비 낙찰 여유의 하위 25%)
+  3. 마진:           세그먼트 마진 최빈 구간(0.005%p 빈) — 낙찰자 밀집 지점 조준
+     (2026-08-26 적중권률 목표화로 p25에서 교체. 백테스트: 적중권 4.4→6.5%)
      + 마진 다이얼(B안): 기관 이력상 약경쟁(참가 중앙 ≤6개사) 예측 시
        이력 낙찰마진 중앙의 절반으로 상향 — 저가 수주 방지 (상한 +3%p)
   4. 추천 투찰률 = 하한율 + 마진 (예정가격 대비 %)
@@ -72,6 +73,17 @@ def _q(vals, p):
     i = (len(vals) - 1) * p
     lo, hi = int(i), min(int(i) + 1, len(vals) - 1)
     return vals[lo] + (vals[hi] - vals[lo]) * (i - lo)
+
+
+def _mode(vals, binw=0.005):
+    """최빈 구간(binw 반올림) 중심값 — 낙찰자들이 가장 많이 서는 마진 지점.
+
+    적중권률(오차 ±0.005%p) 목표 확정(2026-08-26)에 따라 p25 → 최빈 조준으로 교체.
+    시간분리 백테스트 3,284건: 적중권 4.4→6.5% / 낙찰률 71.6→68.9% / 기대마진 -14%.
+    """
+    from collections import Counter as _C
+    c = _C(round(v / binw) * binw for v in vals)
+    return c.most_common(1)[0][0]
 
 
 def _conn():
@@ -239,7 +251,7 @@ def recommend(bid: dict, book: SegmentBook, feedback: dict[str, str] | None = No
     sjs = [x["_sj"] for x in items if x["_sj"] is not None]
     ms = [x["_m"] for x in items]
     exp_sj = statistics.median(sjs) if sjs else 100.0
-    margin = _q(ms, 0.25)
+    margin = _mode(ms)  # 적중권률 조준 — p25(안전빵)에서 최빈(낙찰자 밀집 지점)으로 (2026-08-26)
 
     # ── 마진 다이얼 (B안, 2026-08-25): 경쟁 약함 예측 시 저가 수주 방지 ──
     # 하한 근처(p25) 안전빵은 경쟁 치열 공고에선 정답이지만, 참가 1~3개사
