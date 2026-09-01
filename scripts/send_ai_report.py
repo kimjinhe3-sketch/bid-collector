@@ -89,6 +89,7 @@ def collect() -> dict:
     computed_at = rec_top[0]["computed_at"][:16].replace("T", " ") if rec_top else "-"
     n_rec = cnt("")
     n_dial = cnt("&rationale->dial->>pred=eq.%EC%95%BD%EA%B2%BD%EC%9F%81")
+    n_cell = cnt("&rationale->cell_corr=not.is.null")
 
     bydate = defaultdict(list)
     for s in scores:
@@ -97,7 +98,7 @@ def collect() -> dict:
             bydate[d].append(s)
     dates = sorted(bydate, reverse=True)
     return {"kst": kst, "bydate": bydate, "dates": dates, "fb": fb,
-            "computed_at": computed_at, "n_rec": n_rec, "n_dial": n_dial}
+            "computed_at": computed_at, "n_rec": n_rec, "n_dial": n_dial, "n_cell": n_cell}
 
 
 def _grp_rows(rows):
@@ -218,7 +219,7 @@ def build_html(c: dict) -> tuple[str, str, dict]:
                             for f in active[:4])
                 + ("…" if len(active) > 4 else ""))
     ch_html += (f'<br><span style="color:#8592a6;">추천 재계산 {c["computed_at"]} · '
-                f'발행 {c["n_rec"]:,}건 · 약경쟁 마진 상향 {c["n_dial"]}건</span>')
+                f'발행 {c["n_rec"]:,}건 · 약경쟁 마진 상향 {c["n_dial"]}건 · 셀 보정 {c["n_cell"]}건</span>')
     change = _card(_title("③ 오늘 추천에 반영된 변화 — 어제 결과의 학습")
                    + f'<div style="font-family:{FONT};font-size:12.5px;color:#3a4657;line-height:1.8;">{ch_html}</div>')
 

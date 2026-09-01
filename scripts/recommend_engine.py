@@ -197,6 +197,39 @@ class SegmentBook:
 BID_TYPE_MAP = {"물품": "물품", "공사": "공사", "용역": "용역"}
 
 
+STRATEGY_EPOCH = "2026-08-27"  # 최빈 조준 전환일 — 이전 채점은 구전략 성적이라 보정 근거에서 제외
+
+
+def load_cell_corr(cur) -> dict[tuple[str, str], float]:
+    """매트릭스 셀(공종×기관유형) 선별 보정 (2026-09-01, 사용자 설계).
+
+    셀별 최근 성적(이동창 80건, n>=20)으로 분기:
+      적중권률(|오차|<=0.005) >= 3% → 유지 (잘 맞는 셀은 건드리지 않음)
+      이탈률(|오차|>0.1) > 60%     → 오차 중앙값만큼 보정 (클램프 -0.1 ~ +1.0%p)
+    백테스트 3,481건: 관심 적중권 5.2→5.4% / 이탈 48.8→47.2% / 저가 동일.
+    임계 완화(40~50%)는 과보정으로 적중권 훼손 — 60%가 검증된 값.
+    """
+    cur.execute(
+        "SELECT div, org_type, diff FROM bid_rec_scores "
+        "WHERE open_result_date >= %s AND div IS NOT NULL AND org_type IS NOT NULL "
+        "ORDER BY open_result_date", (STRATEGY_EPOCH,))
+    cells: dict[tuple[str, str], list[float]] = defaultdict(list)
+    for r in cur.fetchall():
+        cells[(r["div"], r["org_type"])].append(float(r["diff"]))
+    out: dict[tuple[str, str], float] = {}
+    for key, errs in cells.items():
+        errs = errs[-80:]
+        if len(errs) < 20:
+            continue
+        hz = sum(1 for e in errs if abs(e) <= 0.005) / len(errs)
+        outr = sum(1 for e in errs if abs(e) > 0.1) / len(errs)
+        if hz < 0.03 and outr > 0.6:
+            corr = max(-0.1, min(-statistics.median(errs), 1.0))
+            if abs(corr) >= 0.01:
+                out[key] = round(corr, 4)
+    return out
+
+
 def load_seg_feedback(cur) -> dict[str, str]:
     """세그먼트 피드백 (score_recommendations 산출) — seg_key → flag."""
     try:
@@ -219,7 +252,8 @@ def load_active_bids(cur) -> list[dict]:
     return [dict(r) for r in cur.fetchall()]
 
 
-def recommend(bid: dict, book: SegmentBook, feedback: dict[str, str] | None = None) -> dict | None:
+def recommend(bid: dict, book: SegmentBook, feedback: dict[str, str] | None = None,
+              cell_corr: dict[tuple[str, str], float] | None = None) -> dict | None:
     div = BID_TYPE_MAP.get(bid["bid_type"])
     if not div:
         return None
@@ -266,6 +300,11 @@ def recommend(bid: dict, book: SegmentBook, feedback: dict[str, str] | None = No
     # 공사는 낙찰 마진이 하한에 촘촘히 밀집해 정밀 빈(0.002)이 유리 (2026-08-28):
     # 관심그룹 백테스트 1,021건 적중권 4.0→5.2% (관심그룹 79%가 공사 — 핵심 레버)
     margin = _mode(ms, 0.002 if div == "공사" else 0.005)
+
+    # 매트릭스 셀 선별 보정 — 이탈률 높은 (공종×기관유형) 셀만 실전 오차만큼 조정
+    ccorr = (cell_corr or {}).get((div, otype))
+    if ccorr:
+        margin = round(margin + ccorr, 4)
 
     # ── 마진 다이얼 (B안, 2026-08-25): 경쟁 약함 예측 시 저가 수주 방지 ──
     # 하한 근처(p25) 안전빵은 경쟁 치열 공고에선 정답이지만, 참가 1~3개사
@@ -322,6 +361,7 @@ def recommend(bid: dict, book: SegmentBook, feedback: dict[str, str] | None = No
             "base_src": "공고" if actual_base else "추정",
             "lower_mode_share": round(lower_conf, 3), "lower_n": lower_n,
             "seg_feedback": fb_flag, "dial": dial, "spread": round(spread, 3),
+            "cell_corr": ccorr,
             "base_ratio": round(ratio, 4), "band": band, "org_type": otype,
             "margin_p25_p50_p75": [round(_q(ms, p), 3) for p in (0.25, 0.5, 0.75)],
             "sajeong_iqr": [round(_q(sjs, p), 3) for p in (0.25, 0.75)] if len(sjs) >= 4 else None,
@@ -345,9 +385,13 @@ def main() -> int:
             feedback = load_seg_feedback(cur)
             if feedback:
                 print(f"[recommend_engine] 세그먼트 피드백 반영: {len(feedback)}건 {feedback}")
+            cell_corr = load_cell_corr(cur)
+            if cell_corr:
+                print(f"[recommend_engine] 매트릭스 셀 보정: "
+                      + ", ".join(f"{d}·{o} {c:+.2f}%p" for (d, o), c in sorted(cell_corr.items())))
             logger.info("학습 %d건 / 대상 공고 %d건", len(results), len(bids))
 
-            recs = [r for r in (recommend(b, book, feedback) for b in bids) if r]
+            recs = [r for r in (recommend(b, book, feedback, cell_corr) for b in bids) if r]
             cols = ("source", "bid_no", "rec_bid_rate", "rec_bid_amount",
                     "rec_bid_amount_v2", "expected_sajeong_v2", "est_lower_rate",
                     "expected_sajeong", "margin", "confidence", "sample_count", "rationale")
