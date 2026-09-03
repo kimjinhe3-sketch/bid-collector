@@ -13,8 +13,9 @@
   4. 추천 투찰률 = 하한율 + 마진 (예정가격 대비 %)
      추천 투찰금액 = 기초금액추정(추정가격×공종별 배율) × 사정율 × 투찰률
 
-세그먼트 계층 (표본 많은 쪽 우선):
-  발주기관×공종(n≥8) → 기관유형×공종(n≥8) → 공종×하한율밴드(n≥5) → 공종 전체
+세그먼트 계층 (표본 많은 쪽 우선, 2026-09-03 개편):
+  발주기관×공종(n≥5) → 기관유형×공종×금액밴드(n≥8) → 기관유형×공종(n≥8)
+  → 공종×하한율밴드(n≥5) → 공종 전체
 
 confidence: high(기관 세그먼트 + 하한율 확신 ≥70%) / medium(유형·밴드 세그먼트) / low(그 외)
 대상: 나라장터(g2b_api_*) 진행중 공고, 공종 물품/공사/용역, 추정가격 존재.
@@ -127,6 +128,7 @@ class SegmentBook:
         self.lower_by_div_band = defaultdict(list)
         self.ratio_by_div = defaultdict(list)
         self.sj_by_org = defaultdict(list)   # ③ 섀도우: 발주기관별 사정율
+        self.by_otype_band = defaultdict(list)  # 중간층: 기관유형x공종x금액밴드 (2026-09-03)
         # 마진 다이얼용 경쟁 이력 — (참가업체수, 낙찰마진) (2026-08-25 B안)
         self.comp_by_ob = defaultdict(list)  # (기관, 공종, 금액밴드)
         self.comp_by_od = defaultdict(list)  # (기관, 공종)
@@ -134,6 +136,7 @@ class SegmentBook:
             div = x["bsns_div"]
             self.by_org[(x["org_name"], div)].append(x)
             self.by_otype[(x["_otype"], div)].append(x)
+            self.by_otype_band[(x["_otype"], div, x["_band"])].append(x)
             self.by_band[(div, round(x["_lw"], 3))].append(x)
             self.by_div[div].append(x)
             self.lower_by_div_band[(div, x["_band"])].append(round(x["_lw"], 3))
@@ -155,10 +158,14 @@ class SegmentBook:
         mode, cnt = Counter(vals).most_common(1)[0]
         return mode, cnt / len(vals), len(vals)
 
-    def stats(self, org: str, otype: str, div: str, lower: float | None):
-        for level, items in (("발주기관", self.by_org.get((org, div))),
-                             ("기관유형", self.by_otype.get((otype, div)))):
-            if items and len(items) >= 8:
+    def stats(self, org: str, otype: str, div: str, lower: float | None, band: str | None = None):
+        # 사다리 개편(2026-09-03): 발주기관 n>=5 완화 + 유형x공종x밴드 중간층 신설.
+        # 관심그룹 백테스트: 적중권 5.19→5.68% (관심 공고의 74%가 기관유형 광역
+        # 세그로 떨어지던 것을 정밀층으로 흡수). n>=3 완화는 노이즈로 역효과.
+        for level, items, min_n in (("발주기관", self.by_org.get((org, div)), 5),
+                                    ("유형x밴드", self.by_otype_band.get((otype, div, band)), 8),
+                                    ("기관유형", self.by_otype.get((otype, div)), 8)):
+            if items and len(items) >= min_n:
                 return level, items
         if lower is not None:
             items = self.by_band.get((div, round(lower, 3)))
@@ -281,7 +288,7 @@ def recommend(bid: dict, book: SegmentBook, feedback: dict[str, str] | None = No
     if lower is None:
         return None
     otype = org_type(bid.get("org_name"))
-    level, items = book.stats(bid.get("org_name") or "", otype, div, lower)
+    level, items = book.stats(bid.get("org_name") or "", otype, div, lower, band)
     if len(items) < 3:
         return None
     sjs = [x["_sj"] for x in items if x["_sj"] is not None]

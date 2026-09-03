@@ -19,6 +19,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.logger import setup_logger, get_logger  # noqa: E402
 from collectors import result_api  # noqa: E402
 
+# 로컬 PC 실행 지원 — .env(G2B_SERVICE_KEY·SUPABASE_*) 로드 (Actions 에선 무해)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
+except Exception:
+    pass
+
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS bid_results (
     id               BIGSERIAL PRIMARY KEY,
@@ -48,7 +55,36 @@ COLS = ("bid_no", "title", "org_name", "bsns_div", "decision_method", "presmpt_p
         "win_bid_amount", "win_bid_rate", "bidder_count", "open_result_date", "winner_name")
 
 
+def _upsert_rest(rows: list[dict]) -> int:
+    """REST 업서트 — 로컬 PC 실행 경로 (2026-09-03).
+
+    나라장터 개방표준 API 가 해외 IP(GitHub Actions 러너)를 차단하기 시작해
+    수집을 이 PC(국내 IP)에서 돌린다. 로컬엔 DATABASE_URL 이 없어 PostgREST
+    on_conflict 병합으로 적재. 스키마는 Actions 쪽 실행이 이미 보장.
+    """
+    import requests
+    try:
+        import truststore
+        truststore.inject_into_ssl()
+    except Exception:
+        pass
+    base = os.environ["SUPABASE_URL"].rstrip("/")
+    key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+    payloads = [{c: r.get(c) for c in COLS} for r in rows if r.get("bid_no")]
+    for i in range(0, len(payloads), 500):
+        r = requests.post(
+            f"{base}/rest/v1/bid_results?on_conflict=bid_no",
+            headers={"apikey": key, "Authorization": f"Bearer {key}",
+                     "Content-Type": "application/json",
+                     "Prefer": "resolution=merge-duplicates,return=minimal"},
+            json=payloads[i:i + 500], timeout=60)
+        r.raise_for_status()
+    return len(payloads)
+
+
 def upsert_results(rows: list[dict]) -> int:
+    if not os.environ.get("DATABASE_URL"):
+        return _upsert_rest(rows)
     import psycopg2
     import psycopg2.extras
     url = os.environ["DATABASE_URL"]
@@ -73,6 +109,18 @@ def upsert_results(rows: list[dict]) -> int:
 
 def _oldest_date():
     """bid_results 의 가장 오래된 개찰일 (자동 소급의 진행 포인터)."""
+    if not os.environ.get("DATABASE_URL"):
+        import requests
+        base = os.environ["SUPABASE_URL"].rstrip("/")
+        key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+        r = requests.get(f"{base}/rest/v1/bid_results",
+                         headers={"apikey": key, "Authorization": f"Bearer {key}"},
+                         params={"select": "open_result_date",
+                                 "open_result_date": "like.2026-%",
+                                 "order": "open_result_date.asc", "limit": "1"}, timeout=30)
+        r.raise_for_status()
+        rows = r.json()
+        return date.fromisoformat(rows[0]["open_result_date"][:10]) if rows else None
     import psycopg2
     url = os.environ["DATABASE_URL"]
     if "sslmode=" not in url:
@@ -104,8 +152,8 @@ def main() -> int:
     if not key:
         logger.error("G2B_SERVICE_KEY 미설정")
         return 1
-    if not os.environ.get("DATABASE_URL"):
-        logger.error("DATABASE_URL 미설정")
+    if not os.environ.get("DATABASE_URL") and not os.environ.get("SUPABASE_SERVICE_ROLE_KEY"):
+        logger.error("DATABASE_URL/SUPABASE_SERVICE_ROLE_KEY 둘 다 미설정")
         return 1
 
     if args.auto:
